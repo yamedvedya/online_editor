@@ -19,7 +19,6 @@ from copy import deepcopy
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 
-
 # from src.aboutdialog import AboutDialog
 from src.online_table_model import ConfigurationNode, SerialDeviceNode, GroupNode, DeviceNode, \
     OnlineModel, DeviceModel, ProxyDeviceModel
@@ -55,14 +54,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.online_model = OnlineModel()
         self.online_proxy = ProxyDeviceModel()
         self.online_proxy.setSourceModel(self.online_model)
-        self.online_proxy.setRecursiveFilteringEnabled(True)
+        try:
+            self.online_proxy.new_version = True
+            self.online_proxy.setRecursiveFilteringEnabled(True)
+        except AttributeError:
+            self.online_proxy.new_version = False
+            # self._ui.le_find.blockSignals(True)
+            # self._ui.le_find.setText('Search works only with PyQt5 > 5.10. Ask system admin to update package')
+            # self._ui.le_find.setEnabled(False)
 
         self.view_device = None
         self.viewed_device = None
         self.device_model = DeviceModel()
         self.device_proxy = ProxyDeviceModel()
         self.device_proxy.setSourceModel(self.device_model)
-        self.device_proxy.setRecursiveFilteringEnabled(True)
 
         self.clipboard = None
 

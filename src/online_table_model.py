@@ -200,7 +200,7 @@ class Node(object):
     def filter_row(self, search_value):
         if self.info is None:
             return True
-        for value in self.info.values():
+        for value in self.info.attrib.values():
             if search_value in value:
                 return True
         for child in self.info:
@@ -510,7 +510,18 @@ class DeviceModel(OnlineModel):
 
 # ----------------------------------------------------------------------
 class ProxyDeviceModel(QtCore.QSortFilterProxyModel):
-    pass
 
+    new_version = True
 
+    def filterAcceptsRow(self, source_row, source_parent):
+        if self.new_version:
+            return super(ProxyDeviceModel, self).filterAcceptsRow(source_row, source_parent)
+        else:
+            match = False
+            my_index = self.sourceModel().index(source_row, 0, source_parent)
+            for row in range(self.sourceModel().rowCount(my_index)):
+                match |= self.filterAcceptsRow(row, my_index)
 
+            match |= super(ProxyDeviceModel, self).filterAcceptsRow(source_row, source_parent)
+
+            return match
