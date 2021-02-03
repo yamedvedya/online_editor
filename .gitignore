@@ -134,4 +134,5 @@ dmypy.json
 /.idea
 /src/gui/*.*
 !/src/gui/__init__.py
+/test.py
 *.xml

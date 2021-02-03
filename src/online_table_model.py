@@ -100,11 +100,15 @@ class Node(object):
 
         elif role == QtCore.Qt.ForegroundRole:
             if not self._check_status() != QtCore.Qt.Unchecked:
-                QtGui.QColor(QtCore.Qt.gray)
+                return QtGui.QColor(QtCore.Qt.gray)
+            else:
+                return QtCore.QVariant()
 
         elif role == QtCore.Qt.CheckStateRole:
             if column == check_column:
                 return self._check_status()
+            else:
+                return QtCore.QVariant()
 
     # ----------------------------------------------------------------------
     def set_data(self, column, data, role):
@@ -191,6 +195,22 @@ class Node(object):
     # ----------------------------------------------------------------------
     def get_my_path(self):
         return self.parent.get_my_path() + '/' + self.data(device_headers.index('Name'), QtCore.Qt.DisplayRole)
+
+    # ----------------------------------------------------------------------
+    def filter_row(self, search_value):
+        if self.info is None:
+            return True
+        for value in self.info.values():
+            if search_value in value:
+                return True
+        for child in self.info:
+            if search_value in child.text:
+                return True
+        if self.serial_device is not None:
+            for child in self.serial_device.info:
+                if search_value in child.text:
+                    return True
+        return False
 
 # ----------------------------------------------------------------------
 class DeviceNode(Node):
@@ -420,6 +440,11 @@ class OnlineModel(QtCore.QAbstractItemModel):
     def finish_adding(self):
         self.endInsertRows()
 
+    # ----------------------------------------------------------------------
+    def filter_row(self, index, value_to_look):
+        node = self.get_node(index)
+        return node.filter_row(value_to_look)
+
 # ----------------------------------------------------------------------
 class DeviceModel(OnlineModel):
 
@@ -482,3 +507,10 @@ class DeviceModel(OnlineModel):
             self.endRemoveColumns()
 
         self._last_num_column = num_columns
+
+# ----------------------------------------------------------------------
+class ProxyDeviceModel(QtCore.QSortFilterProxyModel):
+    pass
+
+
+

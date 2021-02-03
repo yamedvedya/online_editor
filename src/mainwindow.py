@@ -21,7 +21,8 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 
 
 # from src.aboutdialog import AboutDialog
-from src.online_table_model import ConfigurationNode, SerialDeviceNode, GroupNode, DeviceNode, OnlineModel, DeviceModel
+from src.online_table_model import ConfigurationNode, SerialDeviceNode, GroupNode, DeviceNode, \
+    OnlineModel, DeviceModel, ProxyDeviceModel
 from src.add_device import ConfigureDevice
 
 from src.gui.main_window_ui import Ui_OnLineEditor
@@ -42,9 +43,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ui.setupUi(self)
         self._load_ui_settings()
 
-        self._ui.tb_device.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self._ui.tb_device.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-
         self.applied = False
         self.superuser_mode = True
 
@@ -55,10 +53,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.groups = []
         self.devices = []
         self.online_model = OnlineModel()
+        self.online_proxy = ProxyDeviceModel()
+        self.online_proxy.setSourceModel(self.online_model)
+        self.online_proxy.setRecursiveFilteringEnabled(True)
 
         self.view_device = None
         self.viewed_device = None
         self.device_model = DeviceModel()
+        self.device_proxy = ProxyDeviceModel()
+        self.device_proxy.setSourceModel(self.device_model)
+        self.device_proxy.setRecursiveFilteringEnabled(True)
 
         self.clipboard = None
 
@@ -102,15 +106,20 @@ class MainWindow(QtWidgets.QMainWindow):
             self.devices.append([])
             self._parse_group(group, configuration)
 
-        self._ui.tw_online.setModel(self.online_model)
+        self._ui.tw_online.setModel(self.online_proxy)
         self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
 
-        self._ui.tb_device.setModel(self.device_model)
+        self._ui.tb_device.setModel(self.device_proxy)
 
         self._ui.tw_online.selectionModel().currentChanged.connect(self.hide_show_table)
+        self._ui.tb_device.clicked.connect(self.table_clicked)
 
         self.refresh_tables()
+
+    # ----------------------------------------------------------------------
+    def table_clicked(self):
+        self._ui.tb_device.viewport().update()
 
     # ----------------------------------------------------------------------
     def _parse_group(self, root, data):
@@ -138,6 +147,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def hide_show_table(self, index):
         # pass
 
+        index = self.online_proxy.mapToSource(index)
         self.viewed_device = None
         self.device_model.clear()
 
@@ -181,7 +191,7 @@ class MainWindow(QtWidgets.QMainWindow):
         new_action = QtWidgets.QAction('New configuration...')
 
         if self._ui.tw_online.indexAt(pos).isValid():
-            selected_index = self._ui.tw_online.selectionModel().currentIndex()
+            selected_index = self.online_proxy.mapToSource(self._ui.tw_online.selectionModel().currentIndex())
 
             selected_device = self.online_model.get_node(selected_index)
             parent_device = selected_device.parent
@@ -313,7 +323,7 @@ class MainWindow(QtWidgets.QMainWindow):
         selected_element = None
 
         if self.viewed_device is not None:
-            selected_index = self._ui.tb_device.selectionModel().currentIndex()
+            selected_index = self.device_proxy.mapToSource(self._ui.tb_device.selectionModel().currentIndex())
             selected_device = self.device_model.get_node(selected_index)
 
             selected_element = self.settings.getroot()
@@ -577,8 +587,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.applied = True
 
     # ----------------------------------------------------------------------
+    def modify_filters(self, text):
+
+        self.online_proxy.setFilterRegExp(text)
+        self.online_proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self.online_proxy.setDynamicSortFilter(True)
+
+        if text != '':
+            self._ui.tw_online.expandAll()
+        else:
+            self._ui.tw_online.collapseAll()
+
+    # ----------------------------------------------------------------------
     def check_device(self):
         pass
+
     # ----------------------------------------------------------------------
     def show_about(self):
         pass
@@ -679,6 +702,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._ui.but_check.clicked.connect(lambda: self.check_configuration(True))
         self._ui.but_apply.clicked.connect(self.apply_configuration)
+
+        self._ui.le_find.textEdited.connect(self.modify_filters)
 
     # ----------------------------------------------------------------------
     def _init_status_bar(self):
