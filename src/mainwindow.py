@@ -7,7 +7,8 @@
 
 APP_NAME = "OnlieXmlEditor"
 SUPER_USER_PASS = 'admin'
-online_path = './online.xml'
+online_path = '/usr/local/experiment/online_dir/online.xml'
+lib_path = '/gpfs/local/online_libs'
 
 import os
 import psutil
@@ -64,7 +65,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._working_path = None
         self.settings = None
         self._working_file = None
-        self.open_lib(options.file)
+        if options.file is None:
+            self._working_path = lib_path
+            if not self.open_new_lib():
+                raise RuntimeError('No file to display!')
+        else:
+            self.open_lib(options.file)
 
         self._status_timer = QtCore.QTimer(self)
         self._status_timer.timeout.connect(self._refresh)
@@ -351,6 +357,9 @@ class MainWindow(QtWidgets.QMainWindow):
                                                          'Library files (*.xml)')
         if new_file:
             self.open_lib(new_file)
+            return True
+        else:
+            return False
 
     # ----------------------------------------------------------------------
     def save_lib_as(self):

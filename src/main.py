@@ -18,8 +18,7 @@ def main():
     parser = OptionParser()
 
     parser.add_option("-f", "--file", dest="file",
-                      help="OnLine file",
-                      default="./p23_standart.xml")
+                      help="OnLine file")
 
     (options, _) = parser.parse_args()
 
