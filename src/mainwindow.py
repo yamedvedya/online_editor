@@ -7,14 +7,13 @@
 
 APP_NAME = "OnlieXmlEditor"
 SUPER_USER_PASS = 'admin'
-online_path = '/usr/local/experiment/online_dir/online.xml'
+online_path = './online.xml'
 lib_path = '/gpfs/local/online_libs'
 
 import os
 import psutil
 import PyTango
 import xml.etree.cElementTree as ET
-import numpy as np
 from copy import deepcopy
 
 from PyQt5 import QtWidgets, QtCore, QtGui
@@ -22,7 +21,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 # from src.aboutdialog import AboutDialog
 from src.online_table_model import ConfigurationNode, SerialDeviceNode, GroupNode, DeviceNode, \
     OnlineModel, DeviceModel, ProxyDeviceModel
-from src.add_device import ConfigureDevice
+from src.configure_device import ConfigureDevice
 
 from src.gui.main_window_ui import Ui_OnLineEditor
 
@@ -45,12 +44,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.applied = False
         self.superuser_mode = True
 
-        self._init_status_bar()
-        self._init_actions()
-
-        self.configs = []
-        self.groups = []
-        self.devices = []
         self.online_model = OnlineModel()
         self.online_proxy = ProxyDeviceModel()
         self.online_proxy.setSourceModel(self.online_model)
@@ -59,15 +52,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.online_proxy.setRecursiveFilteringEnabled(True)
         except AttributeError:
             self.online_proxy.new_version = False
-            # self._ui.le_find.blockSignals(True)
-            # self._ui.le_find.setText('Search works only with PyQt5 > 5.10. Ask system admin to update package')
-            # self._ui.le_find.setEnabled(False)
 
-        self.view_device = None
+        self._ui.tw_online.setModel(self.online_proxy)
+
         self.viewed_device = None
         self.device_model = DeviceModel()
         self.device_proxy = ProxyDeviceModel()
         self.device_proxy.setSourceModel(self.device_model)
+
+        self._ui.tb_device.setModel(self.device_proxy)
+
+        self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
+
+        self._init_status_bar()
+        self._init_actions()
 
         self.clipboard = None
 
@@ -96,31 +95,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def open_lib(self, file_name):
         self._working_path = os.path.dirname(os.path.abspath(file_name))
         self._working_file = file_name
-        self.settings = ET.parse(file_name)
+        configs = ET.parse(file_name).getroot()
 
-        self.groups = []
-        self.devices = []
         self.online_model.clear()
         self.device_model.clear()
 
-        self.view_device = None
-
-        for ind, configuration in enumerate(self.settings.getroot()):
-            group = ConfigurationNode(self.online_model.root, self, np.array([ind]), configuration)
-            self.configs.append(group)
-            self.devices.append([])
+        self.online_model.start_adding_row(len(configs))
+        for configuration in configs:
+            group = ConfigurationNode(self.online_model.root, configuration)
             self._parse_group(group, configuration)
 
-        self._ui.tw_online.setModel(self.online_proxy)
-        self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
-
-        self._ui.tb_device.setModel(self.device_proxy)
-
-        self._ui.tw_online.selectionModel().currentChanged.connect(self.hide_show_table)
-        self._ui.tb_device.clicked.connect(self.table_clicked)
-
-        self.refresh_tables()
+        self.online_model.finish_row_changes()
 
     # ----------------------------------------------------------------------
     def table_clicked(self):
@@ -128,25 +113,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def _parse_group(self, root, data):
-        for index, item in enumerate(data):
-            self._parse_device(root, item, index)
+        for item in data:
+            self._parse_device(root, item)
 
     # ----------------------------------------------------------------------
-    def _parse_device(self, root, item, index):
-            sub_path = np.append(root.my_id, [index])
-            if item.tag == 'group':
-                group = GroupNode(root, self, sub_path, item)
-                self.groups.append(group)
-                self._parse_group(group, item)
+    def _parse_device(self, root, item, row_to_insert=-1):
+        if item.tag == 'group':
+            self._parse_group(GroupNode(root, item, row=row_to_insert), item)
 
-            elif item.tag == 'serial_device':
-                group = SerialDeviceNode(root, self, sub_path, item)
-                self.groups.append(group)
-                for idx, sub_item in enumerate(item.findall('single_device')):
-                    self.devices[root.my_id[0]].append(DeviceNode(group, self,
-                                                            np.append(sub_path, [idx]), sub_item, group))
-            else:
-                self.devices[root.my_id[0]].append(DeviceNode(root, self, sub_path, item))
+        elif item.tag == 'serial_device':
+            group = SerialDeviceNode(root, item, row=row_to_insert)
+            for sub_item in item.findall('single_device'):
+                DeviceNode(group, sub_item)
+        else:
+            DeviceNode(root, item, row=row_to_insert)
 
     # ----------------------------------------------------------------------
     def hide_show_table(self, index):
@@ -158,24 +138,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self.online_model.is_single_device(index):
             device = self.online_model.get_node(index)
-            self.device_model.start_adding(1)
+            self.device_model.start_adding_row(1)
             self.viewed_device = device
-            self.view_device = DeviceNode(self.device_model.root, self, device.my_id,
-                                          device.info, device.serial_device)
-            self.device_model.finish_adding()
+            DeviceNode(self.device_model.root, device.info)
+            self.device_model.finish_row_changes()
 
         elif self.online_model.is_serial_device(index) or self.online_model.is_part_or_serial_device(index):
             device = self.online_model.get_node(index)
             if self.online_model.is_part_or_serial_device(index):
                 device = device.parent
             self.viewed_device = device
-            self.device_model.start_adding(device.child_count)
-            self.view_device = []
+            self.device_model.start_adding_row(device.child_count)
             for children in device.children:
-                self.view_device.append(DeviceNode(self.device_model.root, self, children.my_id,
-                                                   children.info, children.serial_device))
+                DeviceNode(self.device_model.root, children.info, device.info)
 
-            self.device_model.finish_adding()
+            self.device_model.finish_row_changes()
 
         self.device_model.add_columns()
         self.refresh_tables()
@@ -193,158 +170,102 @@ class MainWindow(QtWidgets.QMainWindow):
         copy_action = QtWidgets.QAction('Copy')
         cut_action = QtWidgets.QAction('Cut')
         del_action = QtWidgets.QAction('Delete')
-        new_action = QtWidgets.QAction('New configuration...')
+        new_action = QtWidgets.QAction('New configuration')
+        convert_action = QtWidgets.QAction()
+
+        selected_device = None
+        selected_index = None
+        insert_index = None
 
         if self._ui.tw_online.indexAt(pos).isValid():
             selected_index = self.online_proxy.mapToSource(self._ui.tw_online.selectionModel().currentIndex())
-
             selected_device = self.online_model.get_node(selected_index)
-            parent_device = selected_device.parent
-
-            selected_element = self.settings.getroot()
-            parent_element = self.settings.getroot()
-            for key in selected_device.my_id[:-1]:
-                selected_element = selected_element[key]
-                parent_element = parent_element[key]
-            if selected_element.tag == 'serial_device':
-                selected_element = selected_element.findall('single_device')[selected_device.my_id[-1]]
-            else:
-                selected_element = selected_element[selected_device.my_id[-1]]
-
             menu.addAction(add_action)
 
-            paste_enabled = False
-            if self.clipboard is not None:
-                # if we have group to paste
-                if self.clipboard[1].tag == 'group':
-                    # if the destination is device - we can paste group to the parent, if it is not serial_device
-                    if selected_element.tag == 'single_device':
-                        if parent_element.tag != 'serial_device':
-                            paste_enabled = True
-                            insert_element = parent_element
-                            insert_device = parent_device
-                    # if the destination is group or configuration - we can paste group to the device
-                    elif selected_element.tag in ['group', 'configuration']:
-                        paste_enabled = True
-                        insert_element = selected_element
-                        insert_device = selected_device
-
-                elif self.clipboard[0].tag == 'serial_device' or self.clipboard[1].tag == 'serial_device':
-                    if selected_element.tag == 'single_device':
-                        if _check_serial_device(self.clipboard[0], parent_element):
-                            paste_enabled = True
-                            insert_element = parent_element
-                            insert_device = parent_device
-                    elif selected_element.tag == 'serial_device':
-                        if _check_serial_device(self.clipboard[0], selected_element):
-                            paste_enabled = True
-                            insert_element = selected_element
-                            insert_device = selected_device
-
-                elif selected_element.tag == 'single_device':
-                    if parent_element.tag != 'serial_device':
-                        paste_enabled = True
-                        insert_element = parent_element
-                        insert_device = parent_device
-
-                else:
-                    paste_enabled = True
-                    insert_element = selected_element
-                    insert_device = selected_device
-
+            paste_enabled, insert_to_parent, clip_device = selected_device.accept_paste(self.clipboard)
             if paste_enabled:
                 menu.addAction(paste_action)
-            menu.addAction(copy_action)
+            if insert_to_parent:
+                insert_index = selected_index.parent()
+            else:
+                insert_index = selected_index
+
+            convert_enable, caption = selected_device.can_be_converted()
+            if convert_enable:
+                convert_action.setText(caption)
+                menu.addAction(convert_action)
+
             menu.addAction(cut_action)
+            menu.addAction(copy_action)
             menu.addAction(del_action)
         else:
             menu.addAction(new_action)
+            if self.clipboard is not None:
+                if self.clipboard.tag == 'configuration':
+                    insert_index = QtCore.QModelIndex()
+                    menu.addAction(paste_action)
 
         action = menu.exec_(self.mapToGlobal(pos))
 
         if action == copy_action:
-            self.clipboard = [parent_element, deepcopy(selected_element)]
+            self.clipboard = selected_device.get_data_to_copy()
 
         elif action == cut_action:
-            self.clipboard = [parent_element, deepcopy(selected_element)]
-            self._delete_element(parent_element, selected_element, selected_index)
+            self.clipboard = selected_device.get_data_to_copy()
+            self.online_model.remove(selected_index)
 
         elif action == del_action:
-            self._delete_element(parent_element, selected_element, selected_index)
+            self.online_model.remove(selected_index)
 
         elif action == paste_action:
-            self._add_element(insert_element, insert_device, self.clipboard[1], selected_index)
+            self.add_element(insert_index, clip_device, selected_index)
+
+        elif action == convert_action:
+            new_device = selected_device.get_converted()
+            self.add_element(selected_index.parent(), new_device, selected_index)
+            self.online_model.remove(selected_index)
 
         elif action == add_action:
-            if parent_element.tag == 'serial_device' or selected_element.tag == 'serial_device':
-                parent_is_serial_device = True
-                dialog = ConfigureDevice(self, {'new': True, 'types': ['single_device'], 'tail': parent_element[-1].tail})
+            if self.online_model.is_serial_device(insert_index) or self.online_model.is_part_or_serial_device(insert_index):
+                dialog = ConfigureDevice(self, {'new': True, 'types': ['single_device']})
             else:
-                dialog = ConfigureDevice(self, {'new': True, 'types': ['group', 'serial_device', 'single_device'],
-                                                'tail': selected_element[-1].tail})
-                parent_is_serial_device = False
+                dialog = ConfigureDevice(self, {'new': True, 'types': ['group', 'serial_device', 'single_device']})
 
             if dialog.exec_():
-                if parent_is_serial_device:
-                    if len(parent_element):
-                        parent_element[-1].tail += "\t"
-                    parent_element.append(dialog.new_device)
+                if self.online_model.is_single_device(insert_index):
+                    self.add_element(insert_index.parent(), dialog.new_device, selected_index)
                 else:
-                    if len(selected_element):
-                        selected_element[-1].tail += "\t"
-                    selected_element.append(dialog.new_device)
+                    self.add_element(insert_index, dialog.new_device, selected_index)
 
         elif action == new_action:
             dialog = ConfigureDevice(self, {'new': True, 'types': ['configuration']})
             if dialog.exec_():
-                self.settings.getroot().append(dialog.new_device)
+                self.add_element(insert_index, dialog.new_device, selected_index)
 
         self.save_library()
+        self.refresh_tables()
 
     # ----------------------------------------------------------------------
-    def _delete_element(self, parent_element, selected_element, selected_index):
+    def add_element(self, insert_index, insert_device, selection):
+        device_to_insert, row_to_insert = self.online_model.start_insert_row(insert_index, selection)
+        self._parse_device(device_to_insert, insert_device, row_to_insert)
+        self.online_model.finish_row_changes()
 
-        for ind, el in enumerate(parent_element):
-            if selected_element == el:
-                last_element = ind == len(parent_element) - 1
-
-        parent_element.remove(selected_element)
-        if last_element:
-            parent_element[-1].tail = parent_element[-1].tail.replace('    ', '\t')[:-1]
-        self.online_model.remove(selected_index)
-
-    # ----------------------------------------------------------------------
-    def _add_element(self, insert_element, insert_device, selected_element, selected_index):
-        if len(insert_element):
-            insert_element[-1].tail += "\t"
-        insert_element.append(selected_element)
-        self.online_model.start_adding(selected_index)
-        self._parse_device(insert_device, selected_element, insert_device.child_count)
-        self.online_model.finish_adding()
+        for child in self.online_proxy.get_configs_indexes():
+            if self._ui.tw_online.isExpanded(child):
+                self._ui.tw_online.collapse(child)
+                self._ui.tw_online.expand(child)
 
     # ----------------------------------------------------------------------
-    def _get_selected_device(self):
-        sub_device = None
-        selected_element = None
-
+    def edit_device_properties(self):
         if self.viewed_device is not None:
             selected_index = self.device_proxy.mapToSource(self._ui.tb_device.selectionModel().currentIndex())
             selected_device = self.device_model.get_node(selected_index)
 
-            selected_element = self.settings.getroot()
-            for key in self.viewed_device.my_id:
-                selected_element = selected_element[key]
-
-            if selected_device != self.device_model.root and isinstance(self.viewed_device, SerialDeviceNode):
-                sub_device = selected_device.my_id[-1]
-
-        return selected_element, sub_device
-
-    # ----------------------------------------------------------------------
-    def edit_device_properties(self):
-        device_to_edit, sub_device = self._get_selected_device()
-        if ConfigureDevice(self, {'new': False, 'device': device_to_edit, 'sub_device': sub_device}).exec_():
-            self.save_library()
+            if ConfigureDevice(self, {'new': False,
+                                      'device': self.viewed_device,
+                                      'sub_device': selected_device.row}).exec_():
+                self.save_library()
 
     # ----------------------------------------------------------------------
     def new_online_selected(self, new_id):
@@ -352,19 +273,29 @@ class MainWindow(QtWidgets.QMainWindow):
             if device.my_id != new_id:
                 device.deactivate()
 
-     # ----------------------------------------------------------------------
-    def save_library(self, new_file=None):
+    # ----------------------------------------------------------------------
+    def save_library(self):
+        self.save_library_as(self._working_file)
 
+    # ----------------------------------------------------------------------
+    def save_library_as(self, new_file):
         self.applied = False
         self.refresh_tables()
 
-        if new_file is None:
-            new_file = self._working_file
-        else:
-            self._working_file = new_file
-            self._working_path = os.path.dirname(os.path.abspath(new_file))
+        self._working_file = new_file
+        self._working_path = os.path.dirname(os.path.abspath(new_file))
 
-        self.settings.write(new_file)
+        library = ET.Element('library')
+        library.text = '\n\t'
+        data = None
+        for config in self.online_model.root.children:
+            data = config.get_data_to_save(library, '\t')
+
+        if data is not None:
+            data.tail = '\n'
+
+        tree = ET.ElementTree(library)
+        tree.write(new_file)
 
     # ----------------------------------------------------------------------
     def open_new_lib(self):
@@ -381,7 +312,29 @@ class MainWindow(QtWidgets.QMainWindow):
         new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save library as', self._working_path,
                                                             'Library files (*.xml)')
         if new_file:
-            self.save_library(new_file)
+            self.save_library_as(new_file)
+
+    # ----------------------------------------------------------------------
+    def import_lib(self):
+        new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save imported library as', self._working_path,
+                                                            'Library files (*.xml)')
+        if new_file:
+            settings = ET.parse(online_path)
+
+            self.online_model.clear()
+            self.device_model.clear()
+
+            self.online_model.start_adding_row(1)
+
+            group = ConfigurationNode(self.online_model.root, {'name': 'default', 'active': 'yes', 'comment': 'as imported'})
+            for device in settings.getroot():
+                info = {'active': 'yes', 'comment': ''}
+                for child in device:
+                    info[child.tag] = child.text
+                DeviceNode(group, info)
+
+            self.online_model.finish_row_changes()
+            self.save_library_as(new_file)
 
     # ----------------------------------------------------------------------
     def set_super_user(self, state):
@@ -401,7 +354,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
-    def config_error(self, text, informative_text='', detailed_text=''):
+    def config_error(self, text, informative_text='', detailed_text='', applying=False):
         self.msg = QtWidgets.QMessageBox()
         self.msg.setModal(False)
         self.msg.setIcon(QtWidgets.QMessageBox.Critical)
@@ -410,8 +363,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if detailed_text != '':
             self.msg.setDetailedText(detailed_text)
         self.msg.setWindowTitle("Error")
-        self.msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
-        self.msg.show()
+        if applying:
+            self.msg.setStandardButtons(QtWidgets.QMessageBox.Ignore|QtWidgets.QMessageBox.Abort)
+            button = self.msg.exec_()
+            return button == QtWidgets.QMessageBox.Ignore
+        else:
+            self.msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            self.msg.show()
 
     # ----------------------------------------------------------------------
     def info_dialog(self, text):
@@ -434,12 +392,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     msg += '\t\t' + value + '\n'
             return msg
 
-        config_ind = None
-        for ind, config in enumerate(self.configs):
+        config_to_export = None
+        for config in self.online_model.root.children:
             if config.is_activated():
-                config_ind = ind
+                config_to_export = config
+                break
 
-        if config_ind is None:
+        if config_to_export is None:
             self.config_error("No configuration is selected", 'Activate one configuration')
             return
 
@@ -456,90 +415,89 @@ class MainWindow(QtWidgets.QMainWindow):
 
         has_error = False
         active_mgs = {}
-        for device in self.devices[config_ind]:
-            if device.is_exported():
-                data.append(device.get_data_to_export())
-                is_tango = False
-                my_name = ''
-                tango_address = None
-                parameter = None
-                hostname = None
-                is_mg = False
-                is_diffract = False
-                for child in data[-1]:
-                    if child.tag == 'type':
-                        is_diffract = child.text == 'diffractometercontroller'
+        for device in config_to_export.get_all_activated_devices():
+            data.append(device.get_data_to_export())
+            is_tango = False
+            my_name = ''
+            tango_address = None
+            parameter = None
+            hostname = None
+            is_mg = False
+            is_diffract = False
+            for child in data[-1]:
+                if child.tag == 'type':
+                    is_diffract = child.text == 'diffractometercontroller'
 
-                for child in data[-1]:
-                    if child.tag in ['name', 'sardananame'] and my_name != child.text:
-                        if child.text in used_names.keys():
-                            has_error = True
-                            if child.text not in double_name.keys():
-                                double_name[child.text] = [used_names[child.text], device.get_my_path()]
-                            else:
-                                double_name[child.text].append(device.get_my_path())
-                        else:
-                            my_name = child.text
-                            used_names[child.text] = device.get_my_path()
-
-                    elif child.tag == 'device' and not is_diffract:
-                        if child.text in used_addresses.keys():
-                            has_error = True
-                            if child.text not in double_addresses.keys():
-                                double_addresses[child.text] = [used_addresses[child.text], device.get_my_path()]
-                            else:
-                                double_addresses[child.text].append(device.get_my_path())
-                        else:
-                            used_addresses[child.text] = device.get_my_path()
-
-                        tokens = child.text.split('/')
-                        if len(tokens) > 2:
-                            tango_address = '/'.join(tokens[:3])
-                        else:
-                            tango_address = None
-                        if len(tokens) > 3:
-                            parameter = tokens[3]
-                        else:
-                            parameter = None
-
-                    elif child.tag == 'hostname':
-                        hostname = child.text
-
-                    elif child.tag == 'control':
-                        is_tango = child.text == 'tango'
-
-                    elif child.text == 'measurement_group':
-                        is_mg = True
-
-                    elif child.tag == 'mgs':
-                        active_mgs[my_name] = child.text
-
-                if is_tango and not is_mg and not is_diffract:
-                    if hostname is None:
-                        rest_errors[my_name] = ['No hostname']
+            for child in data[-1]:
+                if child.tag in ['name', 'sardananame'] and my_name != child.text:
+                    if child.text in used_names.keys():
                         has_error = True
-                    elif tango_address is None:
-                        rest_errors[my_name] = ['No tango address']
-                        has_error = True
+                        if child.text not in double_name.keys():
+                            double_name[child.text] = [used_names[child.text], device.get_my_path()]
+                        else:
+                            double_name[child.text].append(device.get_my_path())
                     else:
-                        try:
-                            dev = PyTango.DeviceProxy(hostname + '/' + tango_address)
-                            try:
-                                dev.state()
-                                if parameter is not None:
-                                    try:
-                                        getattr(dev, parameter)
-                                    except:
-                                        has_error = True
-                                        wrong_attributes[my_name] = [device.get_my_path()]
+                        my_name = child.text
+                        used_names[child.text] = device.get_my_path()
 
-                            except PyTango.DevFailed:
-                                has_error = True
-                                off_devices[my_name] = [device.get_my_path()]
+                elif child.tag == 'device' and not is_diffract:
+                    if child.text in used_addresses.keys():
+                        has_error = True
+                        if child.text not in double_addresses.keys():
+                            double_addresses[child.text] = [used_addresses[child.text], device.get_my_path()]
+                        else:
+                            double_addresses[child.text].append(device.get_my_path())
+                    else:
+                        used_addresses[child.text] = device.get_my_path()
+
+                    tokens = child.text.split('/')
+                    if len(tokens) > 2:
+                        tango_address = '/'.join(tokens[:3])
+                    else:
+                        tango_address = None
+                    if len(tokens) > 3:
+                        parameter = tokens[3]
+                    else:
+                        parameter = None
+
+                elif child.tag == 'hostname':
+                    hostname = child.text
+
+                elif child.tag == 'control':
+                    is_tango = child.text == 'tango'
+
+                elif child.text == 'measurement_group':
+                    is_mg = True
+
+                elif child.tag == 'mgs':
+                    active_mgs[my_name] = child.text
+
+            if is_tango and not is_mg and not is_diffract:
+                if hostname is None:
+                    rest_errors[my_name] = ['No hostname']
+                    has_error = True
+                elif tango_address is None:
+                    rest_errors[my_name] = ['No tango address']
+                    has_error = True
+                else:
+                    try:
+                        dev = PyTango.DeviceProxy(hostname + '/' + tango_address)
+                        try:
+                            dev.state()
+                            if parameter is not None:
+                                try:
+                                    getattr(dev, parameter)
+                                except:
+                                    has_error = True
+                                    wrong_attributes[my_name] = [device.get_my_path()]
 
                         except PyTango.DevFailed:
                             has_error = True
-                            wrong_addresses[my_name] = [device.get_my_path()]
+                            off_devices[my_name] = [device.get_my_path()]
+
+                    except PyTango.DevFailed:
+                        has_error = True
+                        wrong_addresses[my_name] = [device.get_my_path()]
 
         for name, devices in active_mgs.items():
             devices = [device.strip().replace('timers=', '').replace('counters=', '') for device in devices.replace(' ', '').split(',')]
@@ -568,18 +526,23 @@ class MainWindow(QtWidgets.QMainWindow):
             if len(rest_errors):
                 details += 'REST ERRORS:\n'
                 details += _parse_error(rest_errors)
-            self.config_error('Config has errors!', informative_text=details)
-            return False, None
+            if only_check:
+                self.config_error('Config has errors!', informative_text=details)
+            else:
+                if self.config_error('Config has errors!', informative_text=details, applying=True):
+                    return data
+                else:
+                    return None
         else:
             if only_check:
                 self.info_dialog('Configuration is OK')
             else:
-                return True, data
+                return data
 
     # ----------------------------------------------------------------------
     def apply_configuration(self):
-        status, data = self.check_configuration(False)
-        if status:
+        data = self.check_configuration(False)
+        if data is not None:
             root = ET.Element("hw")
             root.text = '\n'
 
@@ -668,13 +631,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def _init_actions(self):
         """
         """
-        open_lib = QtWidgets.QAction('Open library', self)
+        open_lib_action = QtWidgets.QAction('Open library', self)
         # open_lib.setShortcut('Ctrl+O')
-        open_lib.toggled.connect(self.open_new_lib)
+        open_lib_action.triggered.connect(self.open_new_lib)
 
-        save_lib_as = QtWidgets.QAction('Save library as', self)
+        save_lib_action = QtWidgets.QAction('Save library as', self)
         # save_lib_as.setShortcut('Ctrl+S')
-        save_lib_as.toggled.connect(self.save_lib_as)
+        save_lib_action.triggered.connect(self.save_lib_as)
 
         mode_menu = QtWidgets.QMenu('Switch user', self)
 
@@ -689,18 +652,23 @@ class MainWindow(QtWidgets.QMainWindow):
         chk_group.addAction(self.normal_user)
         chk_group.addAction(self.super_user)
 
+        import_lib_action = QtWidgets.QAction('Import current online.xml', self)
+        # save_lib_as.setShortcut('Ctrl+S')
+        import_lib_action.triggered.connect(self.import_lib)
+
         self.normal_user.setChecked(not self.superuser_mode)
         self.super_user.setChecked(self.superuser_mode)
 
         chk_group.triggered.connect(lambda button: self.set_super_user(button == self.super_user))
 
-        about = QtWidgets.QAction('About', self)
-        about.toggled.connect(self.show_about)
+        about_action = QtWidgets.QAction('About', self)
+        about_action.triggered.connect(self.show_about)
 
-        self.menuBar().addAction(open_lib)
-        self.menuBar().addAction(save_lib_as)
+        self.menuBar().addAction(open_lib_action)
+        self.menuBar().addAction(save_lib_action)
         self.menuBar().addMenu(mode_menu)
-        self.menuBar().addAction(about)
+        self.menuBar().addAction(import_lib_action)
+        self.menuBar().addAction(about_action)
 
         self._ui.but_edit_properties.clicked.connect(self.edit_device_properties)
         self._ui.but_check_device.clicked.connect(self.check_device)
@@ -709,6 +677,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ui.but_apply.clicked.connect(self.apply_configuration)
 
         self._ui.le_find.textEdited.connect(self.modify_filters)
+
+        self.online_model.dataChanged.connect(self.save_library)
+        self.device_model.dataChanged.connect(self.save_library)
+
+        self._ui.tw_online.selectionModel().currentChanged.connect(self.hide_show_table)
+        self._ui.tb_device.clicked.connect(self.table_clicked)
 
     # ----------------------------------------------------------------------
     def _init_status_bar(self):
