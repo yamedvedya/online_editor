@@ -52,7 +52,7 @@
         <string/>
        </property>
        <property name="pixmap">
-        <pixmap>:/ico/Desy_logo.jpg</pixmap>
+        <pixmap resource="icons.qrc">:/ico/desy_logo.jpg</pixmap>
        </property>
       </widget>
      </item>

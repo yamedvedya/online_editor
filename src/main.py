@@ -24,8 +24,8 @@ def main():
 
     app = QtWidgets.QApplication(sys.argv)
 
-    mainWindow = MainWindow(options)
-    mainWindow.show()
+    main_window = MainWindow(options)
+    main_window.show()
 
     return app.exec_()
 

@@ -6,11 +6,10 @@ from PyQt5 import QtWidgets, QtCore
 
 from src.gui.new_device_ui import Ui_AddDevice
 from src.property_widget import PropertyWidget
-from src.online_table_model import SerialDeviceNode
+from src.devices_class import SerialDeviceNode
 
 
 class ConfigureDevice(QtWidgets.QDialog):
-    delete_me = QtCore.pyqtSignal(int)
 
     # ----------------------------------------------------------------------
     def __init__(self, parent, options):
@@ -201,9 +200,12 @@ class ConfigureDevice(QtWidgets.QDialog):
 
 # ----------------------------------------------------------------------
 def _refill_device(device, widgets):
-    for key in device.info.keys():
-        if key not in ['name', 'comment', 'active']:
-            del device[key]
+    keys = list(device.info.keys())
+    for key in ['name', 'comment', 'active']:
+        keys.remove(key)
+    for key in keys:
+        del device.info[key]
+
     for widget in widgets.values():
         valid, name, value = widget.get_data()
         if valid:
