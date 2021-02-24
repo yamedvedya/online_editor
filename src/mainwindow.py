@@ -303,6 +303,9 @@ class MainWindow(QtWidgets.QMainWindow):
             if mode == 'move':
                 self.online_model.remove(dragged_index)
 
+            self.save_library()
+            self.refresh_table()
+
     # ----------------------------------------------------------------------
     def add_config(self, config):
         self.online_model.start_adding_row(1, self.online_model.get_node(self.online_model.root_index).child_count)
