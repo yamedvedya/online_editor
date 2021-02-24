@@ -5,18 +5,24 @@
 """
 """
 
+APP_NAME = "OnlieXmlEditor"
+SUPER_USER_PASS = 'admin'
+online_path = './online.xml'
+lib_path = '/gpfs/local/online_libs'
+
 import os
 import psutil
 import PyTango
 import xml.etree.cElementTree as ET
-from copy import deepcopy
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 
-# from src.aboutdialog import AboutDialog
-from src.online_table_model import *
 from settings import *
+from src.aboutdialog import AboutDialog
+from src.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
+from src.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, check_column
 from src.configure_device import ConfigureDevice
+from src.columns_selector import ColumnSelector
 
 from src.gui.main_window_ui import Ui_OnLineEditor
 
@@ -40,6 +46,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.superuser_mode = True
 
         self.online_model = OnlineModel()
+        self.online_model.drag_drop_signal.connect(self.drag_drop)
+        self.online_model.save_columns_count()
         self.online_proxy = ProxyDeviceModel()
         self.online_proxy.setSourceModel(self.online_model)
         try:
@@ -51,6 +59,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ui.tw_online.setModel(self.online_proxy)
 
         self.viewed_device = None
+        self.viewed_device_map = {}
         self.device_model = DeviceModel()
         self.device_proxy = ProxyDeviceModel()
         self.device_proxy.setSourceModel(self.device_model)
@@ -59,6 +68,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
+
+        self.online_model.dataChanged.connect(self.new_online_selected)
 
         self._init_status_bar()
         self._init_actions()
@@ -124,32 +135,61 @@ class MainWindow(QtWidgets.QMainWindow):
             DeviceNode(root, item, row=row_to_insert)
 
     # ----------------------------------------------------------------------
-    def hide_show_table(self, index):
+    def new_device_to_table(self, index):
         # pass
 
         index = self.online_proxy.mapToSource(index)
         self.viewed_device = None
-        self.device_model.clear()
 
-        if self.online_model.is_single_device(index):
-            device = self.online_model.get_node(index)
-            self.device_model.start_adding_row(1)
-            self.viewed_device = device
-            DeviceNode(self.device_model.root, device.info)
-            self.device_model.finish_row_changes()
+        if self.online_model.is_single_device(index) or self.online_model.is_group(index):
+            self.viewed_device = self.online_model.get_node(index)
 
         elif self.online_model.is_serial_device(index) or self.online_model.is_part_or_serial_device(index):
             device = self.online_model.get_node(index)
             if self.online_model.is_part_or_serial_device(index):
                 device = device.parent
             self.viewed_device = device
-            self.device_model.start_adding_row(device.child_count)
-            for children in device.children:
-                DeviceNode(self.device_model.root, children.info, device.info)
 
+        self.refresh_table()
+
+    # ----------------------------------------------------------------------
+    def refresh_table(self):
+
+        self.device_model.clear()
+        self.viewed_device_map = {}
+
+        if isinstance(self.viewed_device, SerialDeviceNode):
+            self.device_model.start_adding_row(self.viewed_device.child_count)
+            for idx, children in enumerate(self.viewed_device.children):
+                DeviceNode(self.device_model.root, children.info, self.viewed_device.info)
+                self.viewed_device_map[idx] = idx
+            self.device_model.finish_row_changes()
+
+        elif isinstance(self.viewed_device, DeviceNode):
+            self.device_model.start_adding_row(1)
+            DeviceNode(self.device_model.root, self.viewed_device.info)
+            self.device_model.finish_row_changes()
+
+        elif isinstance(self.viewed_device, GroupNode):
+            num_devices = 0
+            for children in self.viewed_device.children:
+                if isinstance(children, DeviceNode):
+                    num_devices += 1
+            self.device_model.start_adding_row(num_devices)
+            num_devices = 0
+            for idx, children in enumerate(self.viewed_device.children):
+                if isinstance(children, DeviceNode):
+                    DeviceNode(self.device_model.root, children.info)
+                    self.viewed_device_map[num_devices] = idx
+                    num_devices += 1
             self.device_model.finish_row_changes()
 
         self.device_model.add_columns()
+        if isinstance(self.viewed_device, SerialDeviceNode):
+            for column in range(3, self._ui.tb_device.horizontalHeader().count()-1):
+                if self.device_model.headerData(column, QtCore.Qt.Horizontal, QtCore.Qt.DisplayRole) not in ['sardananame', 'comment']:
+                    self._ui.tb_device.setSpan(0, column, self.device_model.rowCount(), 1)
+
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
@@ -162,6 +202,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         add_action = QtWidgets.QAction('Add')
         paste_action = QtWidgets.QAction('Paste')
+        copy_config = QtWidgets.QAction('Paste')
         copy_action = QtWidgets.QAction('Copy')
         cut_action = QtWidgets.QAction('Cut')
         del_action = QtWidgets.QAction('Delete')
@@ -174,6 +215,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if self._ui.tw_online.indexAt(pos).isValid():
             selected_index = self.online_proxy.mapToSource(self._ui.tw_online.selectionModel().currentIndex())
+            # selected_index = self._ui.tw_online.selectionModel().currentIndex()
             selected_device = self.online_model.get_node(selected_index)
             menu.addAction(add_action)
 
@@ -193,12 +235,14 @@ class MainWindow(QtWidgets.QMainWindow):
             menu.addAction(cut_action)
             menu.addAction(copy_action)
             menu.addAction(del_action)
+
         else:
             menu.addAction(new_action)
             if self.clipboard is not None:
                 if self.clipboard.tag == 'configuration':
                     insert_index = QtCore.QModelIndex()
-                    menu.addAction(paste_action)
+                    clip_device = self.clipboard
+                    menu.addAction(copy_config)
 
         action = menu.exec_(self.mapToGlobal(pos))
 
@@ -214,6 +258,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         elif action == paste_action:
             self.add_element(insert_index, clip_device, selected_index)
+
+        elif action == copy_config:
+            self.add_config(self.clipboard)
 
         elif action == convert_action:
             new_device = selected_device.get_converted()
@@ -241,15 +288,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
-    def add_element(self, insert_index, insert_device, selection):
-        device_to_insert, row_to_insert = self.online_model.start_insert_row(insert_index, selection)
-        self._parse_device(device_to_insert, insert_device, row_to_insert)
+    def drag_drop(self, mode, dropped_index, dragged_index):
+        dragged_device = self.online_model.get_node(dragged_index).get_data_to_copy()
+        dropped_device = self.online_model.get_node(dropped_index)
+
+        paste_enabled, insert_to_parent, clip_device = dropped_device.accept_paste(dragged_device)
+        if paste_enabled:
+            if insert_to_parent:
+                insert_index = dropped_index.parent()
+            else:
+                insert_index = dropped_index
+
+            self.add_element(insert_index, dragged_device, dropped_index)
+            if mode == 'move':
+                self.online_model.remove(dragged_index)
+
+    # ----------------------------------------------------------------------
+    def add_config(self, config):
+        self.online_model.start_adding_row(1, self.online_model.get_node(self.online_model.root_index).child_count)
+        group = ConfigurationNode(self.online_model.root, config)
+        group.deactivate()
+        self._parse_group(group, config)
         self.online_model.finish_row_changes()
 
-        for child in self.online_proxy.get_configs_indexes():
-            if self._ui.tw_online.isExpanded(child):
-                self._ui.tw_online.collapse(child)
-                self._ui.tw_online.expand(child)
+    # ----------------------------------------------------------------------
+    def add_element(self, insert_index, insert_device, select_index):
+        device_to_insert, row_to_insert = self.online_model.start_insert_row(insert_index, select_index)
+        self._parse_device(device_to_insert, insert_device, row_to_insert)
+        self.online_model.finish_row_changes()
 
     # ----------------------------------------------------------------------
     def edit_device_properties(self):
@@ -257,16 +323,24 @@ class MainWindow(QtWidgets.QMainWindow):
             selected_index = self.device_proxy.mapToSource(self._ui.tb_device.selectionModel().currentIndex())
             selected_device = self.device_model.get_node(selected_index)
 
+            if isinstance(selected_device, DeviceNode):
+                sub_device = self.viewed_device_map[selected_device.row]
+            else:
+                sub_device = None
+
             if ConfigureDevice(self, {'new': False,
                                       'device': self.viewed_device,
-                                      'sub_device': selected_device.row}).exec_():
+                                      'sub_device': sub_device}).exec_():
                 self.save_library()
+                self.refresh_table()
 
     # ----------------------------------------------------------------------
-    def new_online_selected(self, new_id):
-        for device in self.configs:
-            if device.my_id != new_id:
-                device.deactivate()
+    def new_online_selected(self, index):
+        new_device = self.online_model.get_node(index)
+        if isinstance(new_device, ConfigurationNode) and index.column() == check_column:
+            for device in self.online_model.root.children:
+                if device != new_device:
+                    device.deactivate()
 
     # ----------------------------------------------------------------------
     def save_library(self):
@@ -562,13 +636,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self._ui.tw_online.collapseAll()
 
     # ----------------------------------------------------------------------
+    def configure_columns(self):
+        if ColumnSelector().exec_():
+            self.online_model.add_columns()
+
+    # ----------------------------------------------------------------------
     def check_device(self):
         pass
 
     # ----------------------------------------------------------------------
     def show_about(self):
         pass
-        # AboutDialog(self).exec_()
+        AboutDialog(self).exec_()
 
     # ----------------------------------------------------------------------
     def closeEvent(self, event):
@@ -634,6 +713,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # save_lib_as.setShortcut('Ctrl+S')
         save_lib_action.triggered.connect(self.save_lib_as)
 
+        columns_action = QtWidgets.QAction('Select columns', self)
+        # save_lib_as.setShortcut('Ctrl+S')
+        columns_action.triggered.connect(self.configure_columns)
+
         mode_menu = QtWidgets.QMenu('Switch user', self)
 
         self.normal_user = QtWidgets.QAction('Standart user', self)
@@ -661,6 +744,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.menuBar().addAction(open_lib_action)
         self.menuBar().addAction(save_lib_action)
+        self.menuBar().addAction(columns_action)
         self.menuBar().addMenu(mode_menu)
         self.menuBar().addAction(import_lib_action)
         self.menuBar().addAction(about_action)
@@ -676,7 +760,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.online_model.dataChanged.connect(self.save_library)
         self.device_model.dataChanged.connect(self.save_library)
 
-        self._ui.tw_online.selectionModel().currentChanged.connect(self.hide_show_table)
+        self._ui.tw_online.selectionModel().currentChanged.connect(self.new_device_to_table)
         self._ui.tb_device.clicked.connect(self.table_clicked)
 
     # ----------------------------------------------------------------------

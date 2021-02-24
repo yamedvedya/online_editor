@@ -26,9 +26,11 @@ def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
                                                    and os.path.splitext(f)[-1] in [".ui",
                                                                                    ".qrc"]]:  # simplify this loop TODO
             base, ext = os.path.splitext(f)
-            post, comp = ("_ui", ui_compiler) if ext == ".ui" else ("_rc", rc_compiler)
+            if ext == ".ui":
+                cmd = "{} {}/{} -o {}/{}{}.py".format(ui_compiler, in_dir, f, out_dir, base, "_ui")
+            else:
+                cmd = "{} {}/{} -o {}{}.py".format(rc_compiler, in_dir, f, base, "_rc")
 
-            cmd = "{} {}/{} -o {}/{}{}.py".format(comp, in_dir, f, out_dir, base, post)
             print(cmd)
             os.system(cmd)
 

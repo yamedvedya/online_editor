@@ -38,6 +38,15 @@
        <property name="editTriggers">
         <set>QAbstractItemView::DoubleClicked</set>
        </property>
+       <property name="dragEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="dragDropMode">
+        <enum>QAbstractItemView::DragDrop</enum>
+       </property>
+       <property name="defaultDropAction">
+        <enum>Qt::MoveAction</enum>
+       </property>
        <property name="horizontalScrollMode">
         <enum>QAbstractItemView::ScrollPerItem</enum>
        </property>
