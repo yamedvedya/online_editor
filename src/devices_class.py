@@ -36,7 +36,6 @@ class Node(object):
             self.info = {}
 
         if self.parent is not None:
-            self._parent_active = parent.check_status() != QtCore.Qt.Unchecked
             self.parent_info = parent.info
         else:
             self.parent_info = {}
@@ -196,6 +195,10 @@ class Node(object):
 
         if column == check_column:
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable
+        elif column == 0:
+            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable | \
+                   QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled
+
         elif column == type_column and not isinstance(self, DeviceNode):
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
         else:
@@ -203,20 +206,35 @@ class Node(object):
 
     # ----------------------------------------------------------------------
     def is_activated(self):
+
         if 'active' in self.info:
-            return self.info['active'] == 'yes'
+            active = self.info['active'] == 'yes'
         else:
-            return False
+            active = True
+
+        if self.parent is not None:
+            active *= self.parent.is_activated()
+
+        return active
+
+    # ----------------------------------------------------------------------
+    def is_all_active(self):
+        if 'active' in self.info:
+            all_active = self.info['active'] == 'yes'
+        else:
+            all_active = True
+
+        for child in self.children:
+            all_active *= child.is_all_active()
+
+        return all_active
 
     # ----------------------------------------------------------------------
     def check_status(self):
-        return QtCore.Qt.Checked
-
-    # ----------------------------------------------------------------------
-    def parent_deactivated(self, status):
-        self._parent_active = status
-        for device in self.children:
-            device.parent_deactivated(status)
+        if self.is_activated():
+            return QtCore.Qt.Checked
+        else:
+            return QtCore.Qt.Unchecked
 
     # ----------------------------------------------------------------------
     def deactivate(self):
@@ -253,7 +271,7 @@ class Node(object):
         def _check_serial_device(info):
             equal = True
             for child in clipboard:
-                if child.tag not in ['name', 'device']:
+                if child.tag not in ['name', 'device', 'sardananame']:
                     if child.tag in info:
                         equal *= child.text == info[child.tag]
                     else:
@@ -321,7 +339,7 @@ class Node(object):
                                             'comment': self.info['comment']})
 
             for key, value in self.children[0].info.items():
-                if key not in ['device', 'name', 'comment', 'active']:
+                if key not in ['device', 'name', 'comment', 'active', 'sardananame']:
                     _make_sub_element(key, value, new_device, '')
 
             for child in self.children:
@@ -330,6 +348,8 @@ class Node(object):
                                                'active': child.info['active'],
                                                'comment': child.info['comment']})
                 _make_sub_element('device', child.info['device'], device, '')
+                if 'sardananame' in child.info:
+                    _make_sub_element('sardananame', child.info['sardananame'], device, '')
 
         return new_device
 
@@ -340,23 +360,27 @@ class Node(object):
         if isinstance(self, SerialDeviceNode):
             can_be_converted, caption = True, 'Convert to group'
         elif isinstance(self, GroupNode):
-            can_be_converted = True
-            caption = 'Convert to serial device'
-            if isinstance(self.children[0], DeviceNode):
-                properties = dict(self.children[0].info)
-                for key in ['device', 'name', 'comment', 'active']:
-                    del properties[key]
-                for child in self.children[1:]:
-                    if isinstance(child, DeviceNode):
-                        for key, value in properties.items():
-                            if key in child.info:
-                                can_be_converted *= value == child.info[key]
-                            else:
-                                can_be_converted = False
-                    else:
-                        can_be_converted = False
-            else:
-                can_be_converted = False
+            if len(self.children):
+                can_be_converted = True
+                caption = 'Convert to serial device'
+                if isinstance(self.children[0], DeviceNode):
+                    properties = dict(self.children[0].info)
+                    for key in ['device', 'name', 'comment', 'active']:
+                        del properties[key]
+                    if 'sardananame' in properties:
+                        del properties['sardananame']
+
+                    for child in self.children[1:]:
+                        if isinstance(child, DeviceNode):
+                            for key, value in properties.items():
+                                if key in child.info:
+                                    can_be_converted *= value == child.info[key]
+                                else:
+                                    can_be_converted = False
+                        else:
+                            can_be_converted = False
+                else:
+                    can_be_converted = False
 
         return can_be_converted, caption
 
@@ -438,19 +462,12 @@ class Node(object):
 class DeviceNode(Node):
 
     # ----------------------------------------------------------------------
-    def check_status(self):
-        if self.is_activated() and self._parent_active:
-            return QtCore.Qt.Checked
-        else:
-            return QtCore.Qt.Unchecked
-
-    # ----------------------------------------------------------------------
     def class_type(self):
         return 'single_device'
 
     # ----------------------------------------------------------------------
     def export_devices(self, dev_list):
-        if self.check_status() == QtCore.Qt.Checked:
+        if self.is_activated():
             dev_list.append(self)
 
 
@@ -467,12 +484,13 @@ class GroupNode(Node):
 
     # ----------------------------------------------------------------------
     def check_status(self):
-        if not self.is_activated() or not self._parent_active:
+
+        if not self.is_activated():
             return QtCore.Qt.Unchecked
         else:
             all_active = True
             for device in self.children:
-                all_active *= device.check_status() == QtCore.Qt.Checked
+                all_active *= device.is_all_active()
             if all_active:
                 return QtCore.Qt.Checked
             else:
@@ -518,6 +536,7 @@ class ConfigurationNode(GroupNode):
             child.export_devices(dev_list)
 
         return dev_list
+
 
 # ----------------------------------------------------------------------
 def _make_sub_element(name, value, parent, depth=''):

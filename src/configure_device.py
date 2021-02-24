@@ -6,7 +6,7 @@ from PyQt5 import QtWidgets, QtCore
 
 from src.gui.new_device_ui import Ui_AddDevice
 from src.property_widget import PropertyWidget
-from src.devices_class import SerialDeviceNode
+from src.devices_class import SerialDeviceNode, GroupNode
 
 
 class ConfigureDevice(QtWidgets.QDialog):
@@ -39,17 +39,19 @@ class ConfigureDevice(QtWidgets.QDialog):
             self.new_device = True
             self._ui.cmb_type.addItems(options['types'])
         else:
+            self._ui.cmb_type.addItem(options['device'].class_type())
             self.new_device = False
             self.edited_device = options['device']
             self._sub_device = options['sub_device']
 
             self._ui.cmb_type.setEnabled(False)
 
-            if isinstance(self.edited_device, SerialDeviceNode):
-                self._ui.fr_common_properties.setVisible(True)
-                for key, value in self.edited_device.info.items():
-                    if key not in ['active', 'comment', 'name']:
-                        self._add_property('common', key, value, False)
+            if isinstance(self.edited_device, SerialDeviceNode) or isinstance(self.edited_device, GroupNode):
+                if isinstance(self.edited_device, SerialDeviceNode):
+                    self._ui.fr_common_properties.setVisible(True)
+                    for key, value in self.edited_device.info.items():
+                        if key not in ['active', 'comment', 'name']:
+                            self._add_property('common', key, value, False)
 
                 if self._sub_device is None:
                     self._ui.le_name.setText(self.edited_device.info['name'])
@@ -63,6 +65,7 @@ class ConfigureDevice(QtWidgets.QDialog):
                     for key, value in device.info.items():
                         if key not in ['active', 'comment', 'name']:
                             self._add_property('personal', key, value, False)
+
             else:
                 self._ui.fr_personal_properties.setVisible(True)
                 self._ui.le_name.setText(self.edited_device.info['name'])
@@ -116,8 +119,9 @@ class ConfigureDevice(QtWidgets.QDialog):
             if not okPressed:
                 self.reject()
 
-        if isinstance(self.edited_device, SerialDeviceNode):
-            _refill_device(self.edited_device, self._common_property_widgets)
+        if isinstance(self.edited_device, SerialDeviceNode) or isinstance(self.edited_device, GroupNode):
+            if isinstance(self.edited_device, SerialDeviceNode):
+                _refill_device(self.edited_device, self._common_property_widgets)
 
             if self._sub_device is None:
                 self.edited_device.info['comment'] = self._ui.le_comment.text()
@@ -153,7 +157,16 @@ class ConfigureDevice(QtWidgets.QDialog):
     # ----------------------------------------------------------------------
     def _add_property(self, type, name='', value='', doRefresh=True):
 
-        new_property = PropertyWidget(self, self._last_ind, name, value)
+        if str(self._ui.cmb_type.currentText()) == 'serial_device' and type == 'personal':
+            if name == '':
+                name = 'sardananame'
+            if name in ['device', 'sardananame']:
+                new_property = PropertyWidget(self, self._last_ind, name, value, False)
+            else:
+                return
+        else:
+            new_property = PropertyWidget(self, self._last_ind, name, value)
+
         new_property.delete_me.connect(self._delete_property)
         if type == 'common':
             self._common_property_widgets[self._last_ind] = new_property

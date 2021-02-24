@@ -5,7 +5,7 @@ from PyQt5 import QtWidgets
 from src.gui.columns_selector_ui import Ui_ColumnSelector
 import src.headers as headers
 
-persistent_columns = ('name', 'active', 'comment')
+persistent_columns = ('name', 'active', 'device', 'comment')
 
 class ColumnSelector(QtWidgets.QDialog):
 

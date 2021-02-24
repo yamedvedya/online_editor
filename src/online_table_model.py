@@ -1,8 +1,11 @@
 # Created by matveyev at 19.01.2021,
 
+import pickle
+import time
+
 from PyQt5 import QtCore
 
-from src.devices_class import Node, DeviceNode, SerialDeviceNode
+from src.devices_class import Node, DeviceNode, SerialDeviceNode, GroupNode
 import src.headers as headers
 
 device_view_role = QtCore.Qt.UserRole + 1
@@ -12,20 +15,59 @@ device_view_role = QtCore.Qt.UserRole + 1
 class OnlineModel(QtCore.QAbstractItemModel):
 
     root_index = QtCore.QModelIndex()
+    drag_drop_signal = QtCore.pyqtSignal(str, QtCore.QModelIndex, QtCore.QModelIndex)
 
+    # ----------------------------------------------------------------------
     def __init__(self, root=None):
         if root is None:
             root = Node(None, None, None)
         self.root = root
         self._last_num_column = 0
+        self._drag_drop_storage = {}
         super(OnlineModel, self).__init__()
+
+    # ----------------------------------------------------------------------
+    def supportedDropActions(self):
+        return QtCore.Qt.MoveAction | QtCore.Qt.CopyAction
+
+    # ----------------------------------------------------------------------
+    def mimeTypes(self):
+        return ['onlineditor/device']
+
+    # ----------------------------------------------------------------------
+    def mimeData(self, index):
+        if index[0].isValid():
+            key = time.time()
+            self._drag_drop_storage[key] = index[0]
+            mime_data = QtCore.QMimeData()
+            mime_data.setData('onlineditor/device', pickle.dumps(key))
+            return mime_data
+
+    # ----------------------------------------------------------------------
+    def dropMimeData(self, mime_data, action, row, column, parent_index):
+
+        if action == QtCore.Qt.IgnoreAction:
+            return True
+
+        dropped_key = pickle.loads(mime_data.data('onlineditor/device'))
+
+        if dropped_key in self._drag_drop_storage:
+            dragged_index = self._drag_drop_storage[dropped_key]
+            if action == QtCore.Qt.CopyAction:
+                self.drag_drop_signal.emit('copy', parent_index, dragged_index)
+                return True
+            elif action == QtCore.Qt.MoveAction:
+                self.drag_drop_signal.emit('move', parent_index, dragged_index)
+                return True
+
+        return False
 
     # ----------------------------------------------------------------------
     def clear(self):
         if len(self.root.children):
             self.beginRemoveRows(self.root_index, 0, len(self.root.children)-1)
-            for row in range(len(self.root.children)):
-                self.removeRow(self.root.row, self.root_index)
+            for row in range(len(self.root.children))[::-1]:
+                self.root.remove_child(row)
             self.endRemoveRows()
 
     # ----------------------------------------------------------------------
@@ -102,20 +144,20 @@ class OnlineModel(QtCore.QAbstractItemModel):
         return isinstance(node.parent, SerialDeviceNode)
 
     # ----------------------------------------------------------------------
-    def removeRow(self, row, parent):
-        if not parent.isValid():
-            parent_node = self.root
-        else:
-            parent_node = parent.internalPointer()
-
-        parent_node.remove_child(row)
-        return True
+    def is_group(self, index):
+        node = self.get_node(index)
+        return isinstance(node, GroupNode)
 
     # ----------------------------------------------------------------------
     def remove(self, index):
         node = self.get_node(index)
         self.beginRemoveRows(index.parent(), node.row, node.row)
-        self.removeRow(node.row, index.parent())
+        if not index.parent().isValid():
+            parent_node = self.root
+        else:
+            parent_node = index.parent().internalPointer()
+
+        parent_node.remove_child(node.row)
         self.endRemoveRows()
 
     # ----------------------------------------------------------------------

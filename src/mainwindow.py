@@ -45,6 +45,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.superuser_mode = True
 
         self.online_model = OnlineModel()
+        self.online_model.drag_drop_signal.connect(self.drag_drop)
         self.online_model.save_columns_count()
         self.online_proxy = ProxyDeviceModel()
         self.online_proxy.setSourceModel(self.online_model)
@@ -57,6 +58,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ui.tw_online.setModel(self.online_proxy)
 
         self.viewed_device = None
+        self.viewed_device_map = {}
         self.device_model = DeviceModel()
         self.device_proxy = ProxyDeviceModel()
         self.device_proxy.setSourceModel(self.device_model)
@@ -138,9 +140,8 @@ class MainWindow(QtWidgets.QMainWindow):
         index = self.online_proxy.mapToSource(index)
         self.viewed_device = None
 
-        if self.online_model.is_single_device(index):
-            device = self.online_model.get_node(index)
-            self.viewed_device = device
+        if self.online_model.is_single_device(index) or self.online_model.is_group(index):
+            self.viewed_device = self.online_model.get_node(index)
 
         elif self.online_model.is_serial_device(index) or self.online_model.is_part_or_serial_device(index):
             device = self.online_model.get_node(index)
@@ -154,11 +155,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def refresh_table(self):
 
         self.device_model.clear()
+        self.viewed_device_map = {}
 
         if isinstance(self.viewed_device, SerialDeviceNode):
             self.device_model.start_adding_row(self.viewed_device.child_count)
-            for children in self.viewed_device.children:
+            for idx, children in enumerate(self.viewed_device.children):
                 DeviceNode(self.device_model.root, children.info, self.viewed_device.info)
+                self.viewed_device_map[idx] = idx
             self.device_model.finish_row_changes()
 
         elif isinstance(self.viewed_device, DeviceNode):
@@ -166,7 +169,26 @@ class MainWindow(QtWidgets.QMainWindow):
             DeviceNode(self.device_model.root, self.viewed_device.info)
             self.device_model.finish_row_changes()
 
+        elif isinstance(self.viewed_device, GroupNode):
+            num_devices = 0
+            for children in self.viewed_device.children:
+                if isinstance(children, DeviceNode):
+                    num_devices += 1
+            self.device_model.start_adding_row(num_devices)
+            num_devices = 0
+            for idx, children in enumerate(self.viewed_device.children):
+                if isinstance(children, DeviceNode):
+                    DeviceNode(self.device_model.root, children.info)
+                    self.viewed_device_map[num_devices] = idx
+                    num_devices += 1
+            self.device_model.finish_row_changes()
+
         self.device_model.add_columns()
+        if isinstance(self.viewed_device, SerialDeviceNode):
+            for column in range(3, self._ui.tb_device.horizontalHeader().count()-1):
+                if self.device_model.headerData(column, QtCore.Qt.Horizontal, QtCore.Qt.DisplayRole) not in ['sardananame', 'comment']:
+                    self._ui.tb_device.setSpan(0, column, self.device_model.rowCount(), 1)
+
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
@@ -212,6 +234,7 @@ class MainWindow(QtWidgets.QMainWindow):
             menu.addAction(cut_action)
             menu.addAction(copy_action)
             menu.addAction(del_action)
+
         else:
             menu.addAction(new_action)
             if self.clipboard is not None:
@@ -264,6 +287,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
+    def drag_drop(self, mode, dropped_index, dragged_index):
+        dragged_device = self.online_model.get_node(dragged_index).get_data_to_copy()
+        dropped_device = self.online_model.get_node(dropped_index)
+
+        paste_enabled, insert_to_parent, clip_device = dropped_device.accept_paste(dragged_device)
+        if paste_enabled:
+            if insert_to_parent:
+                insert_index = dropped_index.parent()
+            else:
+                insert_index = dropped_index
+
+            self.add_element(insert_index, dragged_device, dropped_index)
+            if mode == 'move':
+                self.online_model.remove(dragged_index)
+
+    # ----------------------------------------------------------------------
     def add_config(self, config):
         self.online_model.start_adding_row(1, self.online_model.get_node(self.online_model.root_index).child_count)
         group = ConfigurationNode(self.online_model.root, config)
@@ -283,9 +322,14 @@ class MainWindow(QtWidgets.QMainWindow):
             selected_index = self.device_proxy.mapToSource(self._ui.tb_device.selectionModel().currentIndex())
             selected_device = self.device_model.get_node(selected_index)
 
+            if isinstance(selected_device, DeviceNode):
+                sub_device = self.viewed_device_map[selected_device.row]
+            else:
+                sub_device = None
+
             if ConfigureDevice(self, {'new': False,
                                       'device': self.viewed_device,
-                                      'sub_device': selected_device.row}).exec_():
+                                      'sub_device': sub_device}).exec_():
                 self.save_library()
                 self.refresh_table()
 
