@@ -176,9 +176,6 @@ class Node(object):
             else:
                 data_to_set = 'no'
 
-            for device in self.children:
-                device.parent_deactivated(data_to_set == 'yes')
-
         if data_to_set is None:
             return False
 
@@ -197,8 +194,7 @@ class Node(object):
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable
         elif column == 0:
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable | \
-                   QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled
-
+                   QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled | QtCore.Qt.ItemIsEditable
         elif column == type_column and not isinstance(self, DeviceNode):
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
         else:
