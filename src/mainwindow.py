@@ -5,11 +5,6 @@
 """
 """
 
-APP_NAME = "OnlieXmlEditor"
-SUPER_USER_PASS = 'admin'
-online_path = './online.xml'
-lib_path = '/gpfs/local/online_libs'
-
 import os
 import psutil
 import PyTango
@@ -211,21 +206,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         selected_device = None
         selected_index = None
-        insert_index = None
 
         if self._ui.tw_online.indexAt(pos).isValid():
             selected_index = self.online_proxy.mapToSource(self._ui.tw_online.selectionModel().currentIndex())
             # selected_index = self._ui.tw_online.selectionModel().currentIndex()
             selected_device = self.online_model.get_node(selected_index)
-            menu.addAction(add_action)
 
-            paste_enabled, insert_to_parent, clip_device = selected_device.accept_paste(self.clipboard)
+            if selected_device.accept_add():
+                menu.addAction(add_action)
+
+            paste_enabled, clip_device = selected_device.accept_paste(self.clipboard)
             if paste_enabled:
                 menu.addAction(paste_action)
-            if insert_to_parent:
-                insert_index = selected_index.parent()
-            else:
-                insert_index = selected_index
 
             convert_enable, caption = selected_device.can_be_converted()
             if convert_enable:
@@ -238,11 +230,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         else:
             menu.addAction(new_action)
-            if self.clipboard is not None:
-                if self.clipboard.tag == 'configuration':
-                    insert_index = QtCore.QModelIndex()
-                    clip_device = self.clipboard
-                    menu.addAction(copy_config)
+            if self.clipboard is not None and self.clipboard.tag == 'configuration':
+                clip_device = self.clipboard
+                menu.addAction(copy_config)
 
         action = menu.exec_(self.mapToGlobal(pos))
 
@@ -257,49 +247,38 @@ class MainWindow(QtWidgets.QMainWindow):
             self.online_model.remove(selected_index)
 
         elif action == paste_action:
-            self.add_element(insert_index, clip_device, selected_index)
+            self.add_element(selected_index, clip_device, index=selected_index)
 
         elif action == copy_config:
             self.add_config(self.clipboard)
 
         elif action == convert_action:
             new_device = selected_device.get_converted()
-            self.add_element(selected_index.parent(), new_device, selected_index)
+            self.add_element(selected_index.parent(), new_device, index=selected_index)
             self.online_model.remove(selected_index)
 
         elif action == add_action:
-            if self.online_model.is_serial_device(insert_index) or self.online_model.is_part_or_serial_device(insert_index):
-                dialog = ConfigureDevice(self, {'new': True, 'types': ['single_device']})
-            else:
-                dialog = ConfigureDevice(self, {'new': True, 'types': ['group', 'serial_device', 'single_device']})
-
+            dialog = ConfigureDevice(self, {'new': True,
+                                            'part_of_serial': self.online_model.is_serial_device(selected_index)})
             if dialog.exec_():
-                if self.online_model.is_single_device(insert_index):
-                    self.add_element(insert_index.parent(), dialog.new_device, selected_index)
-                else:
-                    self.add_element(insert_index, dialog.new_device, selected_index)
+                self.add_element(selected_index, dialog.new_device, index=selected_index)
 
         elif action == new_action:
             dialog = ConfigureDevice(self, {'new': True, 'types': ['configuration']})
             if dialog.exec_():
-                self.add_element(insert_index, dialog.new_device, selected_index)
+                self.add_element(QtCore.QModelIndex(), dialog.new_device, index=selected_index)
 
         self.save_library()
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
-    def drag_drop(self, mode, dropped_index, dragged_index):
+    def drag_drop(self, mode, dropped_index, dropped_row, dragged_index):
         dragged_device = self.online_model.get_node(dragged_index).get_data_to_copy()
         dropped_device = self.online_model.get_node(dropped_index)
 
-        paste_enabled, insert_to_parent, clip_device = dropped_device.accept_paste(dragged_device)
+        paste_enabled, clip_device = dropped_device.accept_paste(dragged_device)
         if paste_enabled:
-            if insert_to_parent:
-                insert_index = dropped_index.parent()
-            else:
-                insert_index = dropped_index
-
-            self.add_element(insert_index, dragged_device, dropped_index)
+            self.add_element(dropped_index, dragged_device, row=dropped_row)
             if mode == 'move':
                 self.online_model.remove(dragged_index)
 
@@ -315,8 +294,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.online_model.finish_row_changes()
 
     # ----------------------------------------------------------------------
-    def add_element(self, insert_index, insert_device, select_index):
-        device_to_insert, row_to_insert = self.online_model.start_insert_row(insert_index, select_index)
+    def add_element(self, insert_index, insert_device, index=None, row=0):
+        if index is not None:
+            device_to_insert, row_to_insert = self.online_model.start_insert_row(insert_index, index=index)
+        else:
+            device_to_insert, row_to_insert = self.online_model.start_insert_row(insert_index, row=row)
+
         self._parse_device(device_to_insert, insert_device, row_to_insert)
         self.online_model.finish_row_changes()
 

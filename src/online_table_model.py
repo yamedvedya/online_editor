@@ -15,7 +15,7 @@ device_view_role = QtCore.Qt.UserRole + 1
 class OnlineModel(QtCore.QAbstractItemModel):
 
     root_index = QtCore.QModelIndex()
-    drag_drop_signal = QtCore.pyqtSignal(str, QtCore.QModelIndex, QtCore.QModelIndex)
+    drag_drop_signal = QtCore.pyqtSignal(str, QtCore.QModelIndex, int, QtCore.QModelIndex)
 
     # ----------------------------------------------------------------------
     def __init__(self, root=None):
@@ -54,10 +54,10 @@ class OnlineModel(QtCore.QAbstractItemModel):
         if dropped_key in self._drag_drop_storage:
             dragged_index = self._drag_drop_storage[dropped_key]
             if action == QtCore.Qt.CopyAction:
-                self.drag_drop_signal.emit('copy', parent_index, dragged_index)
+                self.drag_drop_signal.emit('copy', parent_index, row, dragged_index)
                 return True
             elif action == QtCore.Qt.MoveAction:
-                self.drag_drop_signal.emit('move', parent_index, dragged_index)
+                self.drag_drop_signal.emit('move', parent_index, row, dragged_index)
                 return True
 
         return False
@@ -161,11 +161,13 @@ class OnlineModel(QtCore.QAbstractItemModel):
         self.endRemoveRows()
 
     # ----------------------------------------------------------------------
-    def start_insert_row(self, insert_index, selected_index):
-        if selected_index == insert_index:
-            row = 0
-        else:
-            row = self.get_node(selected_index).row
+    def start_insert_row(self, insert_index, index=None, row=0):
+        if index is not None:
+            if index == insert_index:
+                row = 0
+            else:
+                row = self.get_node(index).row
+        row = max(0, row)
         self.beginInsertRows(insert_index, row, row)
         return self.get_node(insert_index), row
 

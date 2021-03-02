@@ -247,6 +247,10 @@ class Node(object):
         return ''
 
     # ----------------------------------------------------------------------
+    def accept_add(self):
+        return False
+
+    # ----------------------------------------------------------------------
     def get_my_path(self):
         return self.parent.get_my_path() + '/' + self.data(headers.device_headers.index('name'), QtCore.Qt.DisplayRole)
 
@@ -284,39 +288,18 @@ class Node(object):
             return device
 
         paste_enabled = False
-        insert_to_parent = False
         device_to_paste = clipboard
         if clipboard is not None:
             # if we have group to paste
-            if clipboard.tag in ['group', 'serial_device']:
-                # if the destination is device - we can paste group to the parent, if it is not serial_device
-                if isinstance(self, DeviceNode) and not isinstance(self.parent, SerialDeviceNode):
+            if isinstance(self, GroupNode) or isinstance(self, ConfigurationNode):
+                paste_enabled = True
+
+            elif isinstance(self, SerialDeviceNode):
+                if _check_serial_device(self.info):
                     paste_enabled = True
-                    insert_to_parent = True
+                    device_to_paste = _get_cut_device()
 
-                # if the destination is group or configuration - we can paste group to the device
-                elif isinstance(self, GroupNode) or isinstance(self, ConfigurationNode):
-                    paste_enabled = True
-
-            elif clipboard.tag == 'single_device':
-                if isinstance(self, DeviceNode):
-                    if isinstance(self.parent, SerialDeviceNode):
-                        if _check_serial_device(self.parent_info):
-                            paste_enabled = True
-                            insert_to_parent = True
-                            device_to_paste = _get_cut_device()
-                    else:
-                        paste_enabled = True
-                        insert_to_parent = True
-
-                elif isinstance(self, SerialDeviceNode):
-                    if _check_serial_device(self.info):
-                        paste_enabled = True
-                        device_to_paste = _get_cut_device()
-                else:
-                    paste_enabled = True
-
-        return paste_enabled, insert_to_parent, device_to_paste
+        return paste_enabled, device_to_paste
 
     # ----------------------------------------------------------------------
     def get_converted(self):
@@ -361,10 +344,9 @@ class Node(object):
                 caption = 'Convert to serial device'
                 if isinstance(self.children[0], DeviceNode):
                     properties = dict(self.children[0].info)
-                    for key in ['device', 'name', 'comment', 'active']:
-                        del properties[key]
-                    if 'sardananame' in properties:
-                        del properties['sardananame']
+                    for key in ['sardananame', 'device', 'name', 'comment', 'active']:
+                        if key in properties:
+                            del properties[key]
 
                     for child in self.children[1:]:
                         if isinstance(child, DeviceNode):
@@ -497,6 +479,10 @@ class GroupNode(Node):
         for children in self.children:
             children.export_devices(dev_list)
 
+    # ----------------------------------------------------------------------
+    def accept_add(self):
+        return True
+
 
 # ----------------------------------------------------------------------
 class SerialDeviceNode(GroupNode):
@@ -508,6 +494,10 @@ class SerialDeviceNode(GroupNode):
     # ----------------------------------------------------------------------
     def class_type(self):
         return 'serial_device'
+
+    # ----------------------------------------------------------------------
+    def accept_add(self):
+        return True
 
 
 # ----------------------------------------------------------------------
@@ -532,6 +522,10 @@ class ConfigurationNode(GroupNode):
             child.export_devices(dev_list)
 
         return dev_list
+
+    # ----------------------------------------------------------------------
+    def accept_add(self):
+        return True
 
 
 # ----------------------------------------------------------------------

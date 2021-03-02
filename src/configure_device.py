@@ -37,17 +37,26 @@ class ConfigureDevice(QtWidgets.QDialog):
 
         if options['new']:
             self.new_device = True
-            self._ui.cmb_type.addItems(options['types'])
+            self._part_of_serial = options['part_of_serial']
+            if not self._part_of_serial:
+                self._ui.cmb_type.addItems(['group', 'serial_device', 'single_device'])
+            else:
+                self._ui.cmb_type.addItem('single_device')
+                self._ui.fr_personal_properties.setVisible(True)
+                self._add_property('personal', 'device', '', True)
         else:
             self._ui.cmb_type.addItem(options['device'].class_type())
+            self._ui.cmb_type.setEnabled(False)
+
             self.new_device = False
             self.edited_device = options['device']
             self._sub_device = options['sub_device']
 
-            self._ui.cmb_type.setEnabled(False)
+            self._part_of_serial = False
 
             if isinstance(self.edited_device, SerialDeviceNode) or isinstance(self.edited_device, GroupNode):
                 if isinstance(self.edited_device, SerialDeviceNode):
+                    self._part_of_serial = True
                     self._ui.fr_common_properties.setVisible(True)
                     for key, value in self.edited_device.info.items():
                         if key not in ['active', 'comment', 'name']:
@@ -157,11 +166,11 @@ class ConfigureDevice(QtWidgets.QDialog):
     # ----------------------------------------------------------------------
     def _add_property(self, type, name='', value='', doRefresh=True):
 
-        if str(self._ui.cmb_type.currentText()) == 'serial_device' and type == 'personal':
+        if self._part_of_serial and type == 'personal':
             if name == '':
                 name = 'sardananame'
             if name in ['device', 'sardananame']:
-                new_property = PropertyWidget(self, self._last_ind, name, value, False)
+                new_property = PropertyWidget(self, self._last_ind, name, value, True)
             else:
                 return
         else:
