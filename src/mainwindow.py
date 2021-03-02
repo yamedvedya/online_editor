@@ -5,6 +5,11 @@
 """
 """
 
+APP_NAME = "OnlieXmlEditor"
+SUPER_USER_PASS = 'admin'
+online_path = './online.xml'
+lib_path = '/gpfs/local/online_libs'
+
 import os
 import psutil
 import PyTango
@@ -12,6 +17,7 @@ import xml.etree.cElementTree as ET
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 
+from settings import *
 from src.aboutdialog import AboutDialog
 from src.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
 from src.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, check_column
@@ -19,11 +25,6 @@ from src.configure_device import ConfigureDevice
 from src.columns_selector import ColumnSelector
 
 from src.gui.main_window_ui import Ui_OnLineEditor
-
-APP_NAME = "OnlineXmlEditor"
-SUPER_USER_PASS = 'admin'
-online_path = './online.xml'
-lib_path = '/gpfs/local/online_libs'
 
 # ----------------------------------------------------------------------
 class MainWindow(QtWidgets.QMainWindow):
@@ -79,7 +80,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings = None
         self._working_file = None
         if options.file is None:
-            self._working_path = lib_path
+            self._working_path = LIB_PATH
             if not self.open_new_lib():
                 raise RuntimeError('No file to display!')
         else:
@@ -302,6 +303,9 @@ class MainWindow(QtWidgets.QMainWindow):
             if mode == 'move':
                 self.online_model.remove(dragged_index)
 
+            self.save_library()
+            self.refresh_table()
+
     # ----------------------------------------------------------------------
     def add_config(self, config):
         self.online_model.start_adding_row(1, self.online_model.get_node(self.online_model.root_index).child_count)
@@ -387,7 +391,7 @@ class MainWindow(QtWidgets.QMainWindow):
         new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save imported library as', self._working_path,
                                                             'Library files (*.xml)')
         if new_file:
-            settings = ET.parse(online_path)
+            settings = ET.parse(ONLINE_PATH)
 
             self.online_model.clear()
             self.device_model.clear()
@@ -618,7 +622,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 root.append(element)
 
             tree = ET.ElementTree(root)
-            tree.write(online_path, xml_declaration=True)
+            tree.write(ONLINE_PATH, xml_declaration=True)
 
             self.applied = True
 
