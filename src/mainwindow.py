@@ -50,6 +50,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.online_proxy.setRecursiveFilteringEnabled(True)
         except AttributeError:
             self.online_proxy.new_version = False
+        self.online_proxy.setFilterKeyColumn(-1)
 
         self._ui.tw_online.setModel(self.online_proxy)
 
