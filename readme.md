@@ -61,3 +61,59 @@ Before the selected configuration will be converted to online.xml file the follo
 In case you still want to apply configuration with errors you can press "Ignore" button.
 
 You can force this check without configuration applying by clicking on the "Check configuration for error"
+
+# Configurations file
+The configuration file is a .xml file with one root element:
+
+```xml
+<library>
+</library>
+```
+
+Every file can contain several configurations. Each configuration should have 3 attributes: name, active- its activation status (can be "yes" or "no"), and comment:
+```xml
+<configuration active="yes" comment="" name="default">
+</configuration>
+```
+
+In contrast to the online.xml these  3 attributes: name, active, comment should be presented in every element 
+The single device entry is very similar to the online.xml entry:
+```xml
+<single_device active="yes" comment="" name="dcmbragg">
+   <device>dcmbragg/dcmtsai/axis1</device>
+   <type>type_tango</type>
+   <module>motor_tango</module>
+   <control>tango</control>
+   <hostname>hasep23oh:10000</hostname>
+</single_device>
+```
+
+
+All devices can be organize by groups:
+```xml
+<group active="yes" comment="" name="OH">
+</group>
+```
+
+
+Additionally there is a concept of "serial device".  This is a series of devices, where only <name>, <sardananame> and <device> tags are different:
+```xml
+<serial_device active="yes" comment="" name="Slit 2">
+   <type>stepping_motor</type>
+   <module>oms58</module>
+   <control>tango</control>
+   <hostname>hasepfe:10000</hostname>
+   <single_device active="yes" comment="" name="ps2vg">
+      <device>p23/motor/fe.19</device>
+   </single_device>
+   <single_device active="yes" comment="" name="ps2v">
+      <device>p23/motor/fe.20</device>
+   </single_device>
+   <single_device active="yes" comment="" name="ps2l">
+      <device>p23/motor/fe.21</device>
+   </single_device>
+   <single_device active="yes" comment="" name="ps2r">
+      <device>p23/motor/fe.22</device>
+   </single_device>
+</serial_device>
+```
