@@ -797,6 +797,7 @@ class MainWindow(QtWidgets.QMainWindow):
 # ----------------------------------------------------------------------
 # ----------------------------------------------------------------------
 
+
 def _check_serial_device(device1, device2):
     result = True
     for child1 in device1:

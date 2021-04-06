@@ -4,6 +4,7 @@
 
 import os
 import sys
+from shutil import copyfile
 
 # ----------------------------------------------------------------------
 in_dirs = ["ui"]
@@ -37,6 +38,10 @@ def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
 
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
+
+    print("Checking the setup.py...")
+    if not os.path.exists('./settings.py'):
+        copyfile('./samples/sample_settings.py', './settings.py')
 
     print("Removing pyc files...")
 
