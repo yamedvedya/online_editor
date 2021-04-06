@@ -2,7 +2,7 @@
 This utility allows easy visual editing of online.xml file for Sardana. Language: Python3 + PyQt5 
 
 #Installation:
-Temporary: after download you should run build.py and make your own settings.py file, based on sample_settings.py. There you should specify the ONLINE_PATH, LIB_PATH.
+After download you should run build.py
 
 #Running
 you can force the opening of the default library by specifying the -f (or --file) option
