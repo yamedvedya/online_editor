@@ -4,19 +4,10 @@
 
 import os
 import sys
-from shutil import copyfile
 
 # ----------------------------------------------------------------------
 in_dirs = ["ui"]
 out_dirs = ["src/gui"]
-
-ui_compilers = {"linux2": "python -m PyQt5.uic.pyuic",
-                "linux": "python -m PyQt5.uic.pyuic",
-                "win32": "C://Users//matveyev//AppData//Local//Programs//Python//Python37-32//Scripts//pyuic5.exe"}
-
-rc_compilers = {"linux2": "pyrcc5",
-                "linux": "pyrcc5",
-                "win32":  "C://Users//matveyev//AppData//Local//Programs//Python//Python37-32//Scripts//pyrcc5.exe"}
 
 # ----------------------------------------------------------------------
 def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
@@ -35,10 +26,8 @@ def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
             print(cmd)
             os.system(cmd)
 
-
 # ----------------------------------------------------------------------
-if __name__ == "__main__":
-
+def build_routine():
     print("Removing pyc files...")
 
     for out_dir in out_dirs:
@@ -61,7 +50,18 @@ if __name__ == "__main__":
 
     print("All removed!")
 
-    compile_uis(ui_compilers[sys.platform],
-                rc_compilers[sys.platform], in_dirs, out_dirs)
+    if sys.platform == "linux" or sys.platform == "linux2":
+        ui_compilers = "python -m PyQt5.uic.pyuic"
+        rc_compilers = "pyrcc5"
+
+    elif sys.platform == "win32":
+        ui_compilers = os.path.join(os.path.dirname(sys.executable), os.path.join('Scripts', 'pyuic5.exe'))
+        rc_compilers = os.path.join(os.path.dirname(sys.executable), os.path.join('Scripts', 'pyrcc5.exe'))
+
+    compile_uis(ui_compilers, rc_compilers, in_dirs, out_dirs)
 
     print("All OK!")
+
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    build_routine()

@@ -6,6 +6,7 @@ import io
 import os
 
 from setuptools import setup, find_packages
+from build import build_routine
 
 # Package meta-data.
 NAME = 'OnlexmlEditor'
@@ -76,5 +77,5 @@ setup(
     ],
 )
 
-
+build_routine()
 
