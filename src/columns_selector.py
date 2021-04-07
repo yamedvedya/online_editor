@@ -7,6 +7,8 @@ import src.headers as headers
 
 persistent_columns = ('name', 'active', 'device', 'comment')
 
+
+# ----------------------------------------------------------------------
 class ColumnSelector(QtWidgets.QDialog):
 
     def __init__(self):

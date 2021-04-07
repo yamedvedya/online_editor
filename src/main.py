@@ -13,8 +13,9 @@ from PyQt5 import QtWidgets
 
 from src.mainwindow import MainWindow
 
+
 # ----------------------------------------------------------------------
-def main():
+def main_routine():
     parser = OptionParser()
 
     parser.add_option("-f", "--file", dest="file",
@@ -32,4 +33,4 @@ def main():
 
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main_routine())
