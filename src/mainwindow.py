@@ -12,14 +12,16 @@ import xml.etree.cElementTree as ET
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 
-from settings import *
 from src.aboutdialog import AboutDialog
 from src.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
 from src.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, check_column
 from src.configure_device import ConfigureDevice
 from src.columns_selector import ColumnSelector
+from src.settings import AppSettings
 
 from src.gui.main_window_ui import Ui_OnLineEditor
+
+from src.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
 # ----------------------------------------------------------------------
 class MainWindow(QtWidgets.QMainWindow):
@@ -37,8 +39,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ui.setupUi(self)
         self._load_ui_settings()
 
+        self._super_user_pass = None
+        self._working_path = None
+        self._online_path = None
+        self._superuser_mode = False
+        if not self._load_settings():
+            raise RuntimeError('Cannot load settings!')
+
         self.applied = False
-        self.superuser_mode = True
 
         self.online_model = OnlineModel()
         self.online_model.drag_drop_signal.connect(self.drag_drop)
@@ -72,11 +80,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.clipboard = None
 
-        self._working_path = None
-        self.settings = None
         self._working_file = None
         if options.file is None:
-            self._working_path = LIB_PATH
             if not self.open_new_lib():
                 raise RuntimeError('No file to display!')
         else:
@@ -191,7 +196,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def _show_context_menu(self, pos):
 
-        if not self.superuser_mode:
+        if not self._superuser_mode:
             return
 
         menu = QtWidgets.QMenu()
@@ -375,7 +380,7 @@ class MainWindow(QtWidgets.QMainWindow):
         new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save imported library as', self._working_path,
                                                             'Library files (*.xml)')
         if new_file:
-            settings = ET.parse(ONLINE_PATH)
+            settings = ET.parse(self._online_path)
 
             self.online_model.clear()
             self.device_model.clear()
@@ -393,19 +398,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.save_library_as(new_file)
 
     # ----------------------------------------------------------------------
-    def set_super_user(self, state):
-        if state:
-            if not self.superuser_mode:
+    def set_super_user(self, button):
+        if button == self.super_user:
+            if not self._superuser_mode:
                 password, okPressed = QtWidgets.QInputDialog.getText(self, "Type superuser password", "Superuser pass:",
-                                                                 QtWidgets.QLineEdit.Normal, "")
+                                                                 QtWidgets.QLineEdit.PasswordEchoOnEdit, "")
                 if okPressed:
-                    self.superuser_mode = password == SUPER_USER_PASS
+                    self._superuser_mode = password == self._super_user_pass
 
         else:
-            self.superuser_mode = False
+            self._superuser_mode = False
 
-        self.normal_user.setChecked(not self.superuser_mode)
-        self.super_user.setChecked(self.superuser_mode)
+        self.normal_user.setChecked(not self._superuser_mode)
+        self.super_user.setChecked(self._superuser_mode)
 
         self.refresh_tables()
 
@@ -606,7 +611,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 root.append(element)
 
             tree = ET.ElementTree(root)
-            tree.write(ONLINE_PATH, xml_declaration=True)
+            tree.write(self._online_path, xml_declaration=True)
 
             self.applied = True
 
@@ -633,8 +638,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def show_about(self):
-        pass
         AboutDialog(self).exec_()
+
+    # ----------------------------------------------------------------------
+    def show_settings(self):
+        dialog = AppSettings(self)
+        if dialog.exec_():
+            self._load_settings()
 
     # ----------------------------------------------------------------------
     def closeEvent(self, event):
@@ -689,6 +699,44 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
 
     # ----------------------------------------------------------------------
+    def _load_settings(self):
+        settings = QtCore.QSettings(APP_NAME)
+
+        all_ok = True
+
+        path = settings.value('LibPath')
+        if path is None:
+            all_ok *= False
+        else:
+            self._working_path = str(path)
+
+        path = settings.value('OnlinePath')
+        if path is None:
+            all_ok *= False
+        else:
+            self._online_path = str(path)
+
+        password = settings.value('SuperuserPassword')
+        if password is None:
+            self._super_user_pass = DEFAULT_SUPERUSER_PASS
+        else:
+            self._super_user_pass = str(password)
+
+        try:
+            self._superuser_mode = bool(settings.value('DefaultSuperuser'))
+        except:
+            self._superuser_mode = False
+
+        if not all_ok:
+            dialog = AppSettings(self)
+            if dialog.exec_():
+                self._working_path, self._online_path = dialog.lib_path, dialog.online_path
+                return True
+            return False
+
+        return True
+
+    # ----------------------------------------------------------------------
     def _init_actions(self):
         """
         """
@@ -703,6 +751,9 @@ class MainWindow(QtWidgets.QMainWindow):
         columns_action = QtWidgets.QAction('Select columns', self)
         # save_lib_as.setShortcut('Ctrl+S')
         columns_action.triggered.connect(self.configure_columns)
+
+        settings_action = QtWidgets.QAction('Settings', self)
+        settings_action.triggered.connect(self.show_settings)
 
         mode_menu = QtWidgets.QMenu('Switch user', self)
 
@@ -721,10 +772,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # save_lib_as.setShortcut('Ctrl+S')
         import_lib_action.triggered.connect(self.import_lib)
 
-        self.normal_user.setChecked(not self.superuser_mode)
-        self.super_user.setChecked(self.superuser_mode)
+        self.normal_user.setChecked(not self._superuser_mode)
+        self.super_user.setChecked(self._superuser_mode)
 
-        chk_group.triggered.connect(lambda button: self.set_super_user(button == self.super_user))
+        chk_group.triggered.connect(self.set_super_user)
 
         about_action = QtWidgets.QAction('About', self)
         about_action.triggered.connect(self.show_about)
@@ -733,6 +784,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menuBar().addAction(save_lib_action)
         self.menuBar().addAction(columns_action)
         self.menuBar().addMenu(mode_menu)
+        self.menuBar().addAction(settings_action)
         self.menuBar().addAction(import_lib_action)
         self.menuBar().addAction(about_action)
 
