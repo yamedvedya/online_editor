@@ -26,8 +26,10 @@ def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
             print(cmd)
             os.system(cmd)
 
+
 # ----------------------------------------------------------------------
-def build_routine():
+def build_gui():
+
     print("Removing pyc files...")
 
     for out_dir in out_dirs:
@@ -64,4 +66,4 @@ def build_routine():
 
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    build_routine()
+    build_gui()
