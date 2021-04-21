@@ -134,7 +134,6 @@ dmypy.json
 /.idea
 /src/gui/*.*
 !/src/gui/__init__.py
-settings.py
 /test.py
 icons_rc.py
 *.xml
