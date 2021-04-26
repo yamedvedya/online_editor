@@ -43,10 +43,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._working_path = None
         self._online_path = None
         self._superuser_mode = False
+        self._last_modified = None
+
         if not self._load_settings():
             raise RuntimeError('Cannot load settings!')
-
-        self.applied = False
 
         self.online_model = OnlineModel()
         self.online_model.drag_drop_signal.connect(self.drag_drop)
@@ -613,7 +613,11 @@ class MainWindow(QtWidgets.QMainWindow):
             tree = ET.ElementTree(root)
             tree.write(self._online_path, xml_declaration=True)
 
-            self.applied = True
+            settings = QtCore.QSettings(APP_NAME)
+            settings.setValue("MainWindow/geometry", self.saveGeometry())
+
+            self._last_modified = os.path.getmtime(self._online_path)
+            QtCore.QSettings(APP_NAME).setValue("last_modified", self._last_modified)
 
     # ----------------------------------------------------------------------
     def modify_filters(self, text):
@@ -734,6 +738,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 return True
             return False
 
+        try:
+            self._last_modified = float(QtCore.QSettings(APP_NAME).value("last_modified"))
+        except:
+            self._last_modified = 0
+
         return True
 
     # ----------------------------------------------------------------------
@@ -828,7 +837,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _refresh(self):
         """
         """
-        if self.applied:
+        if os.path.getmtime(self._online_path) == self._last_modified:
             lb_status_style = "QLabel {color: rgb(50, 255, 50);}"
             lb_status_text = 'APPLIED'
         else:

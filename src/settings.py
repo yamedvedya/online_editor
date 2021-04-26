@@ -48,8 +48,8 @@ class AppSettings(QtWidgets.QDialog):
             pass
 
         self._ui.bg_user_role.buttonClicked.connect(self._change_role)
-        self._ui.cmd_lib_path.clicked.connect(lambda state, source='Libraries': self._change_folder(source))
-        self._ui.cmd_online_path.clicked.connect(lambda state, source='Online.xml': self._change_folder(source))
+        self._ui.cmd_lib_path.clicked.connect(self._change_lib_path)
+        self._ui.cmd_online_path.clicked.connect(self._change_online_path)
         self._ui.cmd_superuser_pass.clicked.connect(self._set_pass)
 
     # ----------------------------------------------------------------------
@@ -84,13 +84,16 @@ class AppSettings(QtWidgets.QDialog):
         self._block_signals(False)
 
     # ----------------------------------------------------------------------
-    def _change_folder(self, source):
-        folder = QtWidgets.QFileDialog.getExistingDirectory(self, '{} folder'.format(source), os.getcwd())
+    def _change_lib_path(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Libraries folder', os.getcwd())
         if folder:
-            if source == 'Libraries':
-                self._ui.le_lib_path.setText(folder)
-            else:
-                self._ui.le_online_path.setText(folder)
+            self._ui.le_lib_path.setText(folder)
+
+    # ----------------------------------------------------------------------
+    def _change_online_path(self):
+        file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Online.xml file', os.getcwd(), 'online.xml (online.xml)')
+        if file:
+            self._ui.le_online_path.setText(file)
 
     # ----------------------------------------------------------------------
     def accept(self):
