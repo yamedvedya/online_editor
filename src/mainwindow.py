@@ -363,7 +363,10 @@ class MainWindow(QtWidgets.QMainWindow):
         new_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open new library file', self._working_path,
                                                          'Library files (*.xml)')
         if new_file:
-            self.open_lib(new_file)
+            if new_file == self._online_path:
+                self.import_lib()
+            else:
+                self.open_lib(new_file)
             return True
         else:
             return False
