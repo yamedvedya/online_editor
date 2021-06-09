@@ -6,6 +6,10 @@
 """
 
 import os
+import time
+import tempfile
+import shutil
+
 import psutil
 import PyTango
 import xml.etree.cElementTree as ET
@@ -44,6 +48,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._online_path = None
         self._superuser_mode = False
         self._last_modified = None
+        self._last_edit_step = -1
+
+        counter = 0
+        self._temp_dir = os.path.join(tempfile.gettempdir(), f'onlinexml_editor_{counter}')
+        while os.path.exists(self._temp_dir):
+            counter += 1
+            self._temp_dir = os.path.join(tempfile.gettempdir(), f'onlinexml_editor_{counter}')
+        os.mkdir(self._temp_dir)
 
         if not self._load_settings():
             raise RuntimeError('Cannot load settings!')
@@ -102,6 +114,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def open_lib(self, file_name):
         self._working_path = os.path.dirname(os.path.abspath(file_name))
         self._working_file = file_name
+
+        self._read_lib(file_name)
+
+    # --------------------------------------------------------------------
+    def _read_lib(self, file_name):
         configs = ET.parse(file_name).getroot()
 
         self.online_model.clear()
@@ -274,7 +291,8 @@ class MainWindow(QtWidgets.QMainWindow):
             if dialog.exec_():
                 self.add_element(QtCore.QModelIndex(), dialog.new_device, index=selected_index)
 
-        self.save_library()
+        self._last_modified = time.time()
+        self.save_history()
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
@@ -288,7 +306,8 @@ class MainWindow(QtWidgets.QMainWindow):
             if mode == 'move':
                 self.online_model.remove(dragged_index)
 
-            self.save_library()
+            self._last_modified = time.time()
+            self.save_history()
             self.refresh_table()
 
     # ----------------------------------------------------------------------
@@ -323,7 +342,8 @@ class MainWindow(QtWidgets.QMainWindow):
             if ConfigureDevice(self, {'new': False,
                                       'device': self.viewed_device,
                                       'sub_device': sub_device}).exec_():
-                self.save_library()
+                self._last_modified = time.time()
+                self.save_history()
                 self.refresh_table()
 
     # ----------------------------------------------------------------------
@@ -335,17 +355,34 @@ class MainWindow(QtWidgets.QMainWindow):
                     device.deactivate()
 
     # ----------------------------------------------------------------------
+    def _data_modified(self):
+        self._last_modified = time.time()
+
+    # ----------------------------------------------------------------------
+    def undo(self):
+        self._last_edit_step -= 1
+        self._read_lib(os.path.join(self._temp_dir, f'{self._last_edit_step}.xml'))
+
+    # ----------------------------------------------------------------------
+    def save_history(self):
+        self._last_edit_step += 1
+        self._drop_library(os.path.join(self._temp_dir, f'{self._last_edit_step}.xml'))
+
+    # ----------------------------------------------------------------------
     def save_library(self):
         self.save_library_as(self._working_file)
 
     # ----------------------------------------------------------------------
     def save_library_as(self, new_file):
-        self.applied = False
         self.refresh_tables()
 
         self._working_file = new_file
         self._working_path = os.path.dirname(os.path.abspath(new_file))
 
+        self._drop_library(new_file)
+
+    # ----------------------------------------------------------------------
+    def _drop_library(self, new_file):
         library = ET.Element('library')
         library.text = '\n\t'
         data = None
@@ -364,6 +401,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                          'Library files (*.xml)')
         if new_file:
             self.open_lib(new_file)
+            self.save_history()
             return True
         else:
             return False
@@ -602,6 +640,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def apply_configuration(self):
+        self.save_library()
         data = self.check_configuration(False)
         if data is not None:
             root = ET.Element("hw")
@@ -616,7 +655,9 @@ class MainWindow(QtWidgets.QMainWindow):
             settings = QtCore.QSettings(APP_NAME)
             settings.setValue("MainWindow/geometry", self.saveGeometry())
 
-            self._last_modified = os.path.getmtime(self._online_path)
+            QtCore.QSettings(APP_NAME).setValue("last_applied", os.path.getmtime(self._online_path))
+
+            self._last_modified = time.time()
             QtCore.QSettings(APP_NAME).setValue("last_modified", self._last_modified)
 
     # ----------------------------------------------------------------------
@@ -664,6 +705,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         """
         self._save_ui_settings()
+        self.save_library()
+
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
 
         QtWidgets.qApp.clipboard().clear()
 
@@ -739,9 +783,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return False
 
         try:
-            self._last_modified = float(QtCore.QSettings(APP_NAME).value("last_modified"))
+           self._last_modified = float(QtCore.QSettings(APP_NAME).value("last_modified"))
         except:
-            self._last_modified = 0
+           self._last_modified = 0
 
         return True
 
@@ -749,13 +793,21 @@ class MainWindow(QtWidgets.QMainWindow):
     def _init_actions(self):
         """
         """
+        undo = QtWidgets.QAction('Undo', self)
+        # open_lib.setShortcut('Ctrl+O')
+        undo.triggered.connect(self.undo)
+
         open_lib_action = QtWidgets.QAction('Open library', self)
         # open_lib.setShortcut('Ctrl+O')
         open_lib_action.triggered.connect(self.open_new_lib)
 
-        save_lib_action = QtWidgets.QAction('Save library as', self)
+        save_lib_action = QtWidgets.QAction('Save library', self)
         # save_lib_as.setShortcut('Ctrl+S')
-        save_lib_action.triggered.connect(self.save_lib_as)
+        save_lib_action.triggered.connect(self.save_library)
+
+        saveas_lib_action = QtWidgets.QAction('Save library as', self)
+        # save_lib_as.setShortcut('Ctrl+S')
+        saveas_lib_action.triggered.connect(self.save_lib_as)
 
         columns_action = QtWidgets.QAction('Select columns', self)
         # save_lib_as.setShortcut('Ctrl+S')
@@ -789,8 +841,10 @@ class MainWindow(QtWidgets.QMainWindow):
         about_action = QtWidgets.QAction('About', self)
         about_action.triggered.connect(self.show_about)
 
+        self.menuBar().addAction(undo)
         self.menuBar().addAction(open_lib_action)
         self.menuBar().addAction(save_lib_action)
+        self.menuBar().addAction(saveas_lib_action)
         self.menuBar().addAction(columns_action)
         self.menuBar().addMenu(mode_menu)
         self.menuBar().addAction(settings_action)
@@ -805,8 +859,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._ui.le_find.textEdited.connect(self.modify_filters)
 
-        self.online_model.dataChanged.connect(self.save_library)
-        self.device_model.dataChanged.connect(self.save_library)
+        self.online_model.dataChanged.connect(self._data_modified)
+        self.device_model.dataChanged.connect(self._data_modified)
 
         self._ui.tw_online.selectionModel().currentChanged.connect(self.new_device_to_table)
         self._ui.tb_device.clicked.connect(self.table_clicked)
@@ -837,7 +891,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def _refresh(self):
         """
         """
-        if os.path.getmtime(self._online_path) == self._last_modified:
+        try:
+           _last_applied = float(QtCore.QSettings(APP_NAME).value("last_applied"))
+        except:
+           _last_applied = 0
+
+        try:
+           _last_modified = float(QtCore.QSettings(APP_NAME).value("last_modified"))
+        except:
+           _last_modified = 0
+
+        if os.path.getmtime(self._online_path) == _last_applied and self._last_modified == _last_modified:
             lb_status_style = "QLabel {color: rgb(50, 255, 50);}"
             lb_status_text = 'APPLIED'
         else:
