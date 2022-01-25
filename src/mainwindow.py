@@ -357,6 +357,8 @@ class MainWindow(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def _data_modified(self):
         self._last_modified = time.time()
+        self._ui.tb_device.viewport().update()
+        self._ui.tw_online.viewport().update()
 
     # ----------------------------------------------------------------------
     def undo(self):
