@@ -2,8 +2,8 @@
 
 from PyQt5 import QtWidgets
 
-from src.gui.columns_selector_ui import Ui_ColumnSelector
-import src.headers as headers
+from onlinexml_editor.gui.columns_selector_ui import Ui_ColumnSelector
+import onlinexml_editor.headers as headers
 
 persistent_columns = ('name', 'active', 'device', 'comment')
 

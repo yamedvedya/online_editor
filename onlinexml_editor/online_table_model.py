@@ -5,8 +5,8 @@ import time
 
 from PyQt5 import QtCore
 
-from src.devices_class import Node, DeviceNode, SerialDeviceNode, GroupNode
-import src.headers as headers
+from onlinexml_editor.devices_class import Node, DeviceNode, SerialDeviceNode, GroupNode
+import onlinexml_editor.headers as headers
 
 device_view_role = QtCore.Qt.UserRole + 1
 

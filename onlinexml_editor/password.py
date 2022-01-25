@@ -2,8 +2,8 @@
 
 from PyQt5 import QtWidgets, QtCore
 
-from src.gui.password_ui import Ui_PasswordSetup
-from src.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
+from onlinexml_editor.gui.password_ui import Ui_PasswordSetup
+from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
 
 # ----------------------------------------------------------------------

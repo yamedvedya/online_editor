@@ -5,7 +5,7 @@ from xml.etree import cElementTree as ET
 
 from PyQt5 import QtCore, QtGui
 
-import src.headers as headers # device_headers, online_headers, possible_headers
+import onlinexml_editor.headers as headers # device_headers, online_headers, possible_headers
 
 device_view_role = QtCore.Qt.UserRole + 1
 

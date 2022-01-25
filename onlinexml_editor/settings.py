@@ -4,9 +4,9 @@ import os
 
 from PyQt5 import QtWidgets, QtCore
 
-from src.gui.settings_ui import Ui_AppSettings
-from src.password import PasswordSetup
-from src.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
+from onlinexml_editor.gui.settings_ui import Ui_AppSettings
+from onlinexml_editor.password import PasswordSetup
+from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
 
 # ----------------------------------------------------------------------
@@ -21,7 +21,6 @@ class AppSettings(QtWidgets.QDialog):
         self._ui = Ui_AppSettings()
         self._ui.setupUi(self)
 
-        self.lib_path = ''
         self.online_path = ''
 
         settings = QtCore.QSettings(APP_NAME)
@@ -30,10 +29,6 @@ class AppSettings(QtWidgets.QDialog):
             self.restoreGeometry(settings.value("Settings/geometry"))
         except:
             pass
-
-        path = settings.value('LibPath')
-        if path is not None:
-            self._ui.le_lib_path.setText(str(path))
 
         path = settings.value('OnlinePath')
         if path is not None:
@@ -48,7 +43,6 @@ class AppSettings(QtWidgets.QDialog):
             pass
 
         self._ui.bg_user_role.buttonClicked.connect(self._change_role)
-        self._ui.cmd_lib_path.clicked.connect(self._change_lib_path)
         self._ui.cmd_online_path.clicked.connect(self._change_online_path)
         self._ui.cmd_superuser_pass.clicked.connect(self._set_pass)
 
@@ -84,12 +78,6 @@ class AppSettings(QtWidgets.QDialog):
         self._block_signals(False)
 
     # ----------------------------------------------------------------------
-    def _change_lib_path(self):
-        folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Libraries folder', os.getcwd())
-        if folder:
-            self._ui.le_lib_path.setText(folder)
-
-    # ----------------------------------------------------------------------
     def _change_online_path(self):
         file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Online.xml file', os.getcwd(), 'online.xml (online.xml)')
         if file:
@@ -100,7 +88,6 @@ class AppSettings(QtWidgets.QDialog):
         all_ok = True
         error_text = ''
 
-        self.lib_path = str(self._ui.le_lib_path.text())
         self.online_path = str(self._ui.le_online_path.text())
 
         if not os.path.exists(self.lib_path):
@@ -121,7 +108,6 @@ class AppSettings(QtWidgets.QDialog):
             return
 
         settings = QtCore.QSettings(APP_NAME)
-        settings.setValue('LibPath', self.lib_path)
         settings.setValue('OnlinePath', self.online_path)
 
         if self._ui.rb_superuser.isChecked():

@@ -14,21 +14,24 @@ import psutil
 import PyTango
 import xml.etree.cElementTree as ET
 
-from PyQt5 import QtWidgets, QtCore, QtGui
+from pathlib import Path
 
-from src.aboutdialog import AboutDialog
-from src.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
-from src.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, check_column
-from src.configure_device import ConfigureDevice
-from src.columns_selector import ColumnSelector
-from src.settings import AppSettings
+from PyQt5 import QtWidgets, QtCore
 
-from src.gui.main_window_ui import Ui_OnLineEditor
+from onlinexml_editor.aboutdialog import AboutDialog
+from onlinexml_editor.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
+from onlinexml_editor.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, check_column
+from onlinexml_editor.configure_device import ConfigureDevice
+from onlinexml_editor.columns_selector import ColumnSelector
+from onlinexml_editor.settings import AppSettings
 
-from src.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
+from onlinexml_editor.gui.main_window_ui import Ui_OnLineEditor
+
+from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
+
 
 # ----------------------------------------------------------------------
-class MainWindow(QtWidgets.QMainWindow):
+class OnlinexmlEditor(QtWidgets.QMainWindow):
     """
     """
     LOG_PREVIEW = "gvim"
@@ -38,23 +41,22 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, options):
         """
         """
-        super(MainWindow, self).__init__()
+        super(OnlinexmlEditor, self).__init__()
         self._ui = Ui_OnLineEditor()
         self._ui.setupUi(self)
         self._load_ui_settings()
 
         self._super_user_pass = None
-        self._working_path = None
         self._online_path = None
         self._superuser_mode = False
         self._last_modified = None
         self._last_edit_step = -1
 
         counter = 0
-        self._temp_dir = os.path.join(tempfile.gettempdir(), f'onlinexml_editor_{counter}')
+        self._temp_dir = os.path.join(tempfile.gettempdir(), 'onlinexml_editor_{:s}'.format(str(counter)))
         while os.path.exists(self._temp_dir):
             counter += 1
-            self._temp_dir = os.path.join(tempfile.gettempdir(), f'onlinexml_editor_{counter}')
+            self._temp_dir = os.path.join(tempfile.gettempdir(), 'onlinexml_editor_{:s}'.format(str(counter)))
         os.mkdir(self._temp_dir)
 
         if not self._load_settings():
@@ -91,17 +93,84 @@ class MainWindow(QtWidgets.QMainWindow):
         self._init_actions()
 
         self.clipboard = None
-
-        self._working_file = None
-        if options.file is None:
-            if not self.open_new_lib():
-                raise RuntimeError('No file to display!')
-        else:
-            self.open_lib(options.file)
+        self.get_default_lib(options)
 
         self._status_timer = QtCore.QTimer(self)
         self._status_timer.timeout.connect(self._refresh)
         self._status_timer.start(self.STATUS_TICK)
+
+    # ----------------------------------------------------------------------
+    def get_default_lib(self, options):
+
+        home = os.path.join(str(Path.home()), '.onlinexml_editor')
+        file_name = str(options.profile)
+        if not file_name.endswith('.xml'):
+            file_name += '.xml'
+
+        if file_name != 'default.xml' and not os.path.exists(os.path.join(home, file_name)):
+            file = QtWidgets.QFileDialog.getOpenFileName(self, 'Cannot find library file, please locate it',
+                                                         str(Path.home()), 'XML settings (*.xml)')
+            if file[0]:
+                if self._read_lib(file[0]):
+                    return
+        else:
+            if self._read_lib(os.path.join(home, file_name)):
+                return
+
+        if not os.path.exists(home):
+            os.mkdir(home)
+
+        if not os.path.exists(os.path.join(home, file_name)):
+            QtWidgets.QMessageBox.warning(self, 'Open error',
+                                          'Cannot open default library, current online.xml will be imported!')
+            if not self.import_lib():
+                raise RuntimeError('Cannot import online.xml')
+
+    # ----------------------------------------------------------------------
+    def open_new_lib(self):
+        new_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open new library file', str(Path.home()),
+                                                            'Library files (*.xml)')
+        if new_file:
+            if new_file == self._online_path:
+                self.import_lib()
+            else:
+                self._read_lib(new_file)
+            self.save_history()
+            return True
+        else:
+            return False
+
+    # ----------------------------------------------------------------------
+    def save_lib_as(self):
+        new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save library as', str(Path.home()),
+                                                            'Library files (*.xml)')
+        if new_file:
+            self.save_library_as(new_file)
+
+    # ----------------------------------------------------------------------
+    def import_lib(self):
+        try:
+            settings = ET.parse(self._online_path)
+        except:
+            return False
+
+        self.online_model.clear()
+        self.device_model.clear()
+
+        self.online_model.start_adding_row(1)
+
+        group = ConfigurationNode(self.online_model.root,
+                                  {'name': 'default', 'active': 'yes', 'comment': 'as imported'})
+        for device in settings.getroot():
+            info = {'active': 'yes', 'comment': ''}
+            for child in device:
+                info[child.tag] = child.text
+            DeviceNode(group, info)
+
+        self.online_model.finish_row_changes()
+        self.save_library_as()
+
+        return True
 
     # ----------------------------------------------------------------------
     def refresh_tables(self):
@@ -110,16 +179,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ui.tb_device.viewport().update()
         self._ui.tw_online.viewport().update()
 
-    # ----------------------------------------------------------------------
-    def open_lib(self, file_name):
-        self._working_path = os.path.dirname(os.path.abspath(file_name))
-        self._working_file = file_name
-
-        self._read_lib(file_name)
-
     # --------------------------------------------------------------------
     def _read_lib(self, file_name):
-        configs = ET.parse(file_name).getroot()
+        try:
+            configs = ET.parse(file_name).getroot()
+        except:
+            return False
 
         self.online_model.clear()
         self.device_model.clear()
@@ -130,6 +195,51 @@ class MainWindow(QtWidgets.QMainWindow):
             self._parse_group(group, configuration)
 
         self.online_model.finish_row_changes()
+
+        return True
+
+    # ----------------------------------------------------------------------
+    def _data_modified(self):
+        self._last_modified = time.time()
+        self._ui.tb_device.viewport().update()
+        self._ui.tw_online.viewport().update()
+
+    # ----------------------------------------------------------------------
+    def undo(self):
+        self._last_edit_step -= 1
+        self._read_lib(os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step))))
+
+    # ----------------------------------------------------------------------
+    def save_history(self):
+        self._last_edit_step += 1
+        self._drop_library(os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step))))
+
+    # ----------------------------------------------------------------------
+    def save_library(self):
+        self.save_library_as()
+
+    # ----------------------------------------------------------------------
+    def save_library_as(self, file_name=None):
+        self.refresh_tables()
+
+        if file_name is None:
+            file_name = os.path.join(os.path.join(str(Path.home()), '.onlinexml_editor'), 'default.xml')
+
+        self._drop_library(file_name)
+
+    # ----------------------------------------------------------------------
+    def _drop_library(self, new_file):
+        library = ET.Element('library')
+        library.text = '\n\t'
+        data = None
+        for config in self.online_model.root.children:
+            data = config.get_data_to_save(library, '\t')
+
+        if data is not None:
+            data.tail = '\n'
+
+        tree = ET.ElementTree(library)
+        tree.write(new_file)
 
     # ----------------------------------------------------------------------
     def table_clicked(self):
@@ -353,92 +463,6 @@ class MainWindow(QtWidgets.QMainWindow):
             for device in self.online_model.root.children:
                 if device != new_device:
                     device.deactivate()
-
-    # ----------------------------------------------------------------------
-    def _data_modified(self):
-        self._last_modified = time.time()
-        self._ui.tb_device.viewport().update()
-        self._ui.tw_online.viewport().update()
-
-    # ----------------------------------------------------------------------
-    def undo(self):
-        self._last_edit_step -= 1
-        self._read_lib(os.path.join(self._temp_dir, f'{self._last_edit_step}.xml'))
-
-    # ----------------------------------------------------------------------
-    def save_history(self):
-        self._last_edit_step += 1
-        self._drop_library(os.path.join(self._temp_dir, f'{self._last_edit_step}.xml'))
-
-    # ----------------------------------------------------------------------
-    def save_library(self):
-        self.save_library_as(self._working_file)
-
-    # ----------------------------------------------------------------------
-    def save_library_as(self, new_file):
-        self.refresh_tables()
-
-        self._working_file = new_file
-        self._working_path = os.path.dirname(os.path.abspath(new_file))
-
-        self._drop_library(new_file)
-
-    # ----------------------------------------------------------------------
-    def _drop_library(self, new_file):
-        library = ET.Element('library')
-        library.text = '\n\t'
-        data = None
-        for config in self.online_model.root.children:
-            data = config.get_data_to_save(library, '\t')
-
-        if data is not None:
-            data.tail = '\n'
-
-        tree = ET.ElementTree(library)
-        tree.write(new_file)
-
-    # ----------------------------------------------------------------------
-    def open_new_lib(self):
-        new_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open new library file', self._working_path,
-                                                         'Library files (*.xml)')
-        if new_file:
-            if new_file == self._online_path:
-                self.import_lib()
-            else:
-                self.open_lib(new_file)
-            self.save_history()
-            return True
-        else:
-            return False
-
-    # ----------------------------------------------------------------------
-    def save_lib_as(self):
-        new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save library as', self._working_path,
-                                                            'Library files (*.xml)')
-        if new_file:
-            self.save_library_as(new_file)
-
-    # ----------------------------------------------------------------------
-    def import_lib(self):
-        new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save imported library as', self._working_path,
-                                                            'Library files (*.xml)')
-        if new_file:
-            settings = ET.parse(self._online_path)
-
-            self.online_model.clear()
-            self.device_model.clear()
-
-            self.online_model.start_adding_row(1)
-
-            group = ConfigurationNode(self.online_model.root, {'name': 'default', 'active': 'yes', 'comment': 'as imported'})
-            for device in settings.getroot():
-                info = {'active': 'yes', 'comment': ''}
-                for child in device:
-                    info[child.tag] = child.text
-                DeviceNode(group, info)
-
-            self.online_model.finish_row_changes()
-            self.save_library_as(new_file)
 
     # ----------------------------------------------------------------------
     def set_super_user(self, button):
@@ -683,10 +707,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.online_model.add_columns()
 
     # ----------------------------------------------------------------------
-    def check_device(self):
-        pass
-
-    # ----------------------------------------------------------------------
     def show_about(self):
         AboutDialog(self).exec_()
 
@@ -757,12 +777,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         all_ok = True
 
-        path = settings.value('LibPath')
-        if path is None:
-            all_ok *= False
-        else:
-            self._working_path = str(path)
-
         path = settings.value('OnlinePath')
         if path is None:
             all_ok *= False
@@ -783,7 +797,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not all_ok:
             dialog = AppSettings(self)
             if dialog.exec_():
-                self._working_path, self._online_path = dialog.lib_path, dialog.online_path
+                self._online_path = dialog.online_path
                 return True
             return False
 
@@ -799,11 +813,11 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         """
         undo = QtWidgets.QAction('Undo', self)
-        # open_lib.setShortcut('Ctrl+O')
+        undo.setShortcut('Ctrl+Z')
         undo.triggered.connect(self.undo)
 
         open_lib_action = QtWidgets.QAction('Open library', self)
-        # open_lib.setShortcut('Ctrl+O')
+        open_lib_action.setShortcut('Ctrl+O')
         open_lib_action.triggered.connect(self.open_new_lib)
 
         save_lib_action = QtWidgets.QAction('Save library', self)
@@ -857,7 +871,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menuBar().addAction(about_action)
 
         self._ui.but_edit_properties.clicked.connect(self.edit_device_properties)
-        self._ui.but_check_device.clicked.connect(self.check_device)
 
         self._ui.but_check.clicked.connect(lambda: self.check_configuration(True))
         self._ui.but_apply.clicked.connect(self.apply_configuration)

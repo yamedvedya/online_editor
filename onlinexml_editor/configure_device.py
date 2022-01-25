@@ -4,9 +4,9 @@ import xml.etree.cElementTree as ET
 
 from PyQt5 import QtWidgets, QtCore
 
-from src.gui.new_device_ui import Ui_AddDevice
-from src.property_widget import PropertyWidget
-from src.devices_class import SerialDeviceNode, GroupNode
+from onlinexml_editor.gui.new_device_ui import Ui_AddDevice
+from onlinexml_editor.property_widget import PropertyWidget
+from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode
 
 
 class ConfigureDevice(QtWidgets.QDialog):

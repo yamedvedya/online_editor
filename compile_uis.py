@@ -6,8 +6,17 @@ import os
 import sys
 
 # ----------------------------------------------------------------------
-in_dirs = ["src/ui"]
-out_dirs = ["src/gui"]
+in_dirs = ["uis"]
+out_dirs = ["onlinexml_editor/gui"]
+
+ui_compilers = {"linux2": "python -m PyQt5.uic.pyuic",
+                "linux": "python -m PyQt5.uic.pyuic",
+                "win32": "C://Users//matveyev//AppData//Local//Programs//Python//Python37-32//Scripts//pyuic5.exe"}
+
+rc_compilers = {"linux2": "pyrcc5",
+                "linux": "pyrcc5",
+                "win32":  "C://Users//matveyev//AppData//Local//Programs//Python//Python37-32//Scripts//pyrcc5.exe"}
+
 
 # ----------------------------------------------------------------------
 def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
@@ -15,20 +24,35 @@ def compile_uis(ui_compiler, rc_compiler, in_dirs, out_dirs):
     """
     for in_dir, out_dir in zip(in_dirs, out_dirs):
         for f in [f for f in os.listdir(in_dir) if os.path.isfile(os.path.join(in_dir, f))
-                                                   and os.path.splitext(f)[-1] in [".ui",
-                                                                                   ".qrc"]]:  # simplify this loop TODO
+                  and os.path.splitext(f)[-1] in [".ui", ".qrc"]]:
+
             base, ext = os.path.splitext(f)
             if ext == ".ui":
                 cmd = "{} {}/{} -o {}/{}{}.py".format(ui_compiler, in_dir, f, out_dir, base, "_ui")
             else:
-                cmd = "{} {}/{} -o {}{}.py".format(rc_compiler, in_dir, f, base, "_rc")
+                cmd = "{} {}/{} -o {}/{}{}.py".format(rc_compiler, in_dir, f, out_dir, base, "_rc")
 
             print(cmd)
             os.system(cmd)
 
 
 # ----------------------------------------------------------------------
-def build_gui():
+def update_rc(out_dirs):
+    for out_dir in out_dirs:
+        for f in [f for f in os.listdir(out_dir) if os.path.isfile(os.path.join(out_dir, f)) and os.path.splitext(f)[1] == '.py']:
+            with open(os.path.join(out_dir, f), 'r') as f_open:
+                text = f_open.readlines()
+
+            if 'import icons_rc\n' in text:
+                ind = text.index('import icons_rc\n')
+                text[ind] = 'import {:s}.icons_rc\n'.format(str(out_dir).replace("/", "."))
+
+                with open(os.path.join(out_dir, f), 'w') as f_out:
+                    f_out.writelines(text)
+
+
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
 
     print("Removing pyc files...")
 
@@ -52,18 +76,9 @@ def build_gui():
 
     print("All removed!")
 
-    if sys.platform == "linux" or sys.platform == "linux2":
-        ui_compilers = "python -m PyQt5.uic.pyuic"
-        rc_compilers = "pyrcc5"
+    compile_uis(ui_compilers[sys.platform],
+                rc_compilers[sys.platform], in_dirs, out_dirs)
 
-    elif sys.platform == "win32":
-        ui_compilers = os.path.join(os.path.dirname(sys.executable), os.path.join('Scripts', 'pyuic5.exe'))
-        rc_compilers = os.path.join(os.path.dirname(sys.executable), os.path.join('Scripts', 'pyrcc5.exe'))
-
-    compile_uis(ui_compilers, rc_compilers, in_dirs, out_dirs)
+    update_rc(out_dirs)
 
     print("All OK!")
-
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    build_gui()

@@ -132,8 +132,3 @@ dmypy.json
 
 # Project related ignores
 /.idea
-/src/gui/*.*
-!/src/gui/__init__.py
-/test.py
-icons_rc.py
-*.xml

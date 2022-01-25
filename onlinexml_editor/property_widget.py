@@ -1,7 +1,7 @@
 # Created by matveyev at 26.01.2021
 
 from PyQt5 import QtWidgets, QtCore
-from src.gui.property_ui import Ui_Property
+from onlinexml_editor.gui.property_ui import Ui_Property
 
 # ----------------------------------------------------------------------
 class PropertyWidget(QtWidgets.QWidget):

@@ -7,13 +7,15 @@ import os
 
 from PyQt5 import QtWidgets
 
-from src.gui.about_ui import Ui_AboutDialog
+from onlinexml_editor.gui.about_ui import Ui_AboutDialog
+from onlinexml_editor.version import __version__
+
 
 # ----------------------------------------------------------------------
 class AboutDialog(QtWidgets.QDialog):
     """
     """
-    SOURCE_DIR = "src"
+    SOURCE_DIR = "petra_camera"
     DATETIME = "%Y-%m-%d %H:%M:%S"
 
     # ----------------------------------------------------------------------
@@ -41,6 +43,9 @@ class AboutDialog(QtWidgets.QDialog):
                     if ftime > mtime:
                         mtime = ftime
 
-        txt = datetime.fromtimestamp(mtime).strftime(self.DATETIME)
-        self._ui.lbModified.setText("({})".format(txt))
-
+        self._ui.lb_modified.setText("Last modification: {:s}".format(
+            datetime.fromtimestamp(mtime).strftime(self.DATETIME)))
+        try:
+            self._ui.lb_version.setText("Version: {:s}".format(__version__))
+        except:
+            pass
