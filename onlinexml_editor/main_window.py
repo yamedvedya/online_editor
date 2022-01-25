@@ -103,7 +103,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def get_default_lib(self, options):
 
         home = os.path.join(str(Path.home()), '.onlinexml_editor')
-        file_name = str(options.profile)
+        file_name = str(options.file)
         if not file_name.endswith('.xml'):
             file_name += '.xml'
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from PyQt5 import QtWidgets
 from optparse import OptionParser
 
-from onlinexml_editor.onlinexmleditor import OnlinexmlEditor
+from onlinexml_editor.main_window import OnlinexmlEditor
 from onlinexml_editor.general_settings import APP_NAME
 from .version import __version__
 
@@ -85,7 +85,7 @@ def main():
 
     parser = OptionParser()
 
-    parser.add_option("-p", "--profile", dest='profile', default='default', help="profile selection")
+    parser.add_option("-f", "--file", dest='file', default='default', help="library file")
     parser.add_option("--log", action='store_true', dest='log', help="print logs to console")
 
     (options, _) = parser.parse_args()
