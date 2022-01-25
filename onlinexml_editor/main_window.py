@@ -9,6 +9,7 @@ import os
 import time
 import tempfile
 import shutil
+import logging
 
 import psutil
 import PyTango
@@ -28,6 +29,8 @@ from onlinexml_editor.settings import AppSettings
 from onlinexml_editor.gui.main_window_ui import Ui_OnLineEditor
 
 from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
+
+logger = logging.getLogger(APP_NAME)
 
 
 # ----------------------------------------------------------------------
@@ -62,6 +65,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         if not self._load_settings():
             raise RuntimeError('Cannot load settings!')
 
+        # this is a proxy for displaying the whole file
         self.online_model = OnlineModel()
         self.online_model.drag_drop_signal.connect(self.drag_drop)
         self.online_model.save_columns_count()
@@ -76,6 +80,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         self._ui.tw_online.setModel(self.online_proxy)
 
+        # this is a proxy for displaying only selected file
         self.viewed_device = None
         self.viewed_device_map = {}
         self.device_model = DeviceModel()
@@ -132,8 +137,10 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                                                             'Library files (*.xml)')
         if new_file:
             if new_file == self._online_path:
+                logger.info('Importing current online.xml from {}'.format(new_file))
                 self.import_lib()
             else:
+                logger.info('Opening new file {}'.format(new_file))
                 self._read_lib(new_file)
             self.save_history()
             return True
@@ -145,13 +152,16 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         new_file, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save library as', str(Path.home()),
                                                             'Library files (*.xml)')
         if new_file:
+            new_file += '.xml'
+            logger.info('Saving library to file {}'.format(new_file))
             self.save_library_as(new_file)
 
     # ----------------------------------------------------------------------
     def import_lib(self):
         try:
             settings = ET.parse(self._online_path)
-        except:
+        except Exception as err:
+            logger.error('Cannot import online.xml: {}'.format(repr(err)))
             return False
 
         self.online_model.clear()

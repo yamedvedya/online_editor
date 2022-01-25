@@ -90,10 +90,6 @@ class AppSettings(QtWidgets.QDialog):
 
         self.online_path = str(self._ui.le_online_path.text())
 
-        if not os.path.exists(self.lib_path):
-            all_ok *= False
-            error_text += 'The library path does not exist\n'
-
         if not os.path.exists(self.online_path):
             all_ok *= False
             error_text += 'The online.xml path does not exist\n'

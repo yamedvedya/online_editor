@@ -30,7 +30,7 @@ def excepthook(exc_type, exc_value, traceback_obj):
     :return:
     """
     separator = '-' * 80
-    log_path = "{:s}/.onlinexml_editor/error.log",format(os.path.expanduser('~'))
+    log_path = "{:s}/.onlinexml_editor/error.log".format(os.path.expanduser('~'))
     time_string = time.strftime("%Y-%m-%d, %H:%M:%S")
     tb_info_file = StringIO()
     traceback.print_tb(traceback_obj, None, tb_info_file)

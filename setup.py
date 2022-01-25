@@ -15,7 +15,7 @@ class PostInstallCommand(install):
         cmd = "git log -1 --format='%at' | xargs -I{} date -d @{} +'%Y/%m/%d %H:%M:%S'"
         version = check_output(cmd, stderr=STDOUT, shell=True, universal_newlines=True)
         version = version.replace("\n", "")
-        file = open('petra_camera/version.py', 'w')
+        file = open('onlinexml_editor/version.py', 'w')
         file.write('__version__="{}"'.format(version))
         file.close()
 
@@ -31,8 +31,8 @@ NAME = 'onlinexml_editor'
 DESCRIPTION = 'Utility to edit online.xml files, used in Sardana'
 EMAIL = 'yury.matveev@desy.de'
 AUTHOR = 'Yury Matveyev'
-REQUIRES_PYTHON = '>=3.6'
-VERSION = '1.0'
+REQUIRES_PYTHON = '>=3.5'
+VERSION = '1.0.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
