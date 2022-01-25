@@ -7,6 +7,7 @@ export VIEWERPATH=$PWD/
 export PYTHONPATH=$PYTHONPATH:$VIEWERPATH
 
 python3 ./build.py
-python3 -m venv --system-site-packages ./venv
 
 chmod +x start_online_editor.sh
+
+python3 ./make_alias.py
