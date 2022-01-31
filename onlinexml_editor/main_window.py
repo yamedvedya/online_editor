@@ -37,7 +37,6 @@ logger = logging.getLogger(APP_NAME)
 class OnlinexmlEditor(QtWidgets.QMainWindow):
     """
     """
-    LOG_PREVIEW = "gvim"
     STATUS_TICK = 2000              # [ms]
 
     # ----------------------------------------------------------------------
@@ -88,11 +87,14 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.device_proxy.setSourceModel(self.device_model)
 
         self._ui.tb_device.setModel(self.device_proxy)
+        self._ui.tb_device.clicked.connect(lambda: self._ui.but_edit_properties.setEnabled(True))
 
         self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
 
         self.online_model.dataChanged.connect(self.new_online_selected)
+
+        self._ui.but_edit_properties.setEnabled(False)
 
         self._init_status_bar()
         self._init_actions()
@@ -154,7 +156,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         if new_file:
             new_file += '.xml'
             logger.info('Saving library to file {}'.format(new_file))
-            self.save_library_as(new_file)
+            self.save_library(new_file)
 
     # ----------------------------------------------------------------------
     def import_lib(self):
@@ -178,7 +180,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             DeviceNode(group, info)
 
         self.online_model.finish_row_changes()
-        self.save_library_as()
+        self.save_library()
 
         return True
 
@@ -193,7 +195,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def _read_lib(self, file_name):
         try:
             configs = ET.parse(file_name).getroot()
-        except:
+        except Exception as err:
+            logger.error('Cannot read {}: {}'.format(file_name, repr(err)))
             return False
 
         self.online_model.clear()
@@ -211,30 +214,34 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def _data_modified(self):
         self._last_modified = time.time()
+        logger.debug('Data modified at {}'.format(self._last_modified))
+
         self._ui.tb_device.viewport().update()
         self._ui.tw_online.viewport().update()
 
     # ----------------------------------------------------------------------
     def undo(self):
+
         self._last_edit_step -= 1
-        self._read_lib(os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step))))
+        f_name = os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step)))
+        logger.debug('Undo: last edit step {}, load history file {}'.format(self._last_edit_step, f_name))
+        self._read_lib(f_name)
 
     # ----------------------------------------------------------------------
     def save_history(self):
         self._last_edit_step += 1
-        self._drop_library(os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step))))
+        f_name = os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step)))
+        logger.debug('Save history file: last edit step {}, file {}'.format(self._last_edit_step, f_name))
+        self._drop_library(f_name)
 
     # ----------------------------------------------------------------------
-    def save_library(self):
-        self.save_library_as()
-
-    # ----------------------------------------------------------------------
-    def save_library_as(self, file_name=None):
+    def save_library(self, file_name=None):
         self.refresh_tables()
 
         if file_name is None:
             file_name = os.path.join(os.path.join(str(Path.home()), '.onlinexml_editor'), 'default.xml')
 
+        logger.info('Saving in {}'.format(file_name))
         self._drop_library(file_name)
 
     # ----------------------------------------------------------------------
@@ -288,6 +295,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 device = device.parent
             self.viewed_device = device
 
+        logger.debug('Displaying {}'.format(self.viewed_device.info['name']))
+
         self.refresh_table()
 
     # ----------------------------------------------------------------------
@@ -295,6 +304,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         self.device_model.clear()
         self.viewed_device_map = {}
+        self._ui.but_edit_properties.setEnabled(False)
 
         if isinstance(self.viewed_device, SerialDeviceNode):
             self.device_model.start_adding_row(self.viewed_device.child_count)
@@ -349,6 +359,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         selected_device = None
         selected_index = None
+        clip_device = None
 
         if self._ui.tw_online.indexAt(pos).isValid():
             selected_index = self.online_proxy.mapToSource(self._ui.tw_online.selectionModel().currentIndex())
@@ -379,6 +390,16 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         action = menu.exec_(self.mapToGlobal(pos))
 
+        log_msg = 'Context menu: action: {}'.format(action.text().lower())
+
+        if selected_device is not None:
+            log_msg += ', selected_device: {}'.format(selected_device.info['name'])
+
+        if clip_device is not None:
+            log_msg += ', clip_device: {}'.format(clip_device.attrib['name'])
+
+        logger.debug(log_msg)
+
         if action == copy_action:
             self.clipboard = selected_device.get_data_to_copy()
 
@@ -402,14 +423,16 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         elif action == add_action:
             dialog = ConfigureDevice(self, {'new': True,
-                                            'part_of_serial': self.online_model.is_serial_device(selected_index)})
+                                            'type': 'serial' if self.online_model.is_serial_device(selected_index)
+                                                             else 'non_serial'})
             if dialog.exec_():
                 self.add_element(selected_index, dialog.new_device, index=selected_index)
 
         elif action == new_action:
-            dialog = ConfigureDevice(self, {'new': True, 'types': ['configuration']})
+            dialog = ConfigureDevice(self, {'new': True, 'type': 'configuration'})
             if dialog.exec_():
-                self.add_element(QtCore.QModelIndex(), dialog.new_device, index=selected_index)
+                self.add_element(QtCore.QModelIndex(), dialog.new_device,
+                                 row=self.online_model.get_node(self.online_model.root_index).child_count)
 
         self._last_modified = time.time()
         self.save_history()
@@ -420,8 +443,12 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         dragged_device = self.online_model.get_node(dragged_index).get_data_to_copy()
         dropped_device = self.online_model.get_node(dropped_index)
 
+        logger.debug('Drag&drop: dragged {}, dropped to {} at row {}'.format(
+            dragged_device.attrib['name'], dropped_device.info['name'], dropped_row))
+
         paste_enabled, clip_device = dropped_device.accept_paste(dragged_device)
         if paste_enabled:
+            logger.debug('Drag&drop: paste_enabled')
             self.add_element(dropped_index, dragged_device, row=dropped_row)
             if mode == 'move':
                 self.online_model.remove(dragged_index)
@@ -432,6 +459,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def add_config(self, config):
+        logger.debug('Adding config')
         self.online_model.start_adding_row(1, self.online_model.get_node(self.online_model.root_index).child_count)
         group = ConfigurationNode(self.online_model.root, config)
         group.deactivate()
@@ -451,24 +479,30 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def edit_device_properties(self):
         if self.viewed_device is not None:
+
             selected_index = self.device_proxy.mapToSource(self._ui.tb_device.selectionModel().currentIndex())
             selected_device = self.device_model.get_node(selected_index)
 
-            if isinstance(selected_device, DeviceNode):
-                sub_device = self.viewed_device_map[selected_device.row]
-            else:
-                sub_device = None
+            logger.debug('Edit properties for {}'.format(selected_device.info['name']))
 
-            if ConfigureDevice(self, {'new': False,
-                                      'device': self.viewed_device,
-                                      'sub_device': sub_device}).exec_():
+            params = {'new':  False}
+            if isinstance(self.viewed_device, SerialDeviceNode):
+                params['device'] = self.viewed_device
+                params['sub_device'] = self.viewed_device_map[selected_device.row]
+            else:
+                params['device'] = selected_device
+                params['sub_device'] = None
+
+            if ConfigureDevice(self, params).exec_():
                 self._last_modified = time.time()
                 self.save_history()
                 self.refresh_table()
 
     # ----------------------------------------------------------------------
     def new_online_selected(self, index):
+
         new_device = self.online_model.get_node(index)
+        logger.info('New configuration selected: {}'.format(new_device.info['name']))
         if isinstance(new_device, ConfigurationNode) and index.column() == check_column:
             for device in self.online_model.root.children:
                 if device != new_device:
@@ -476,15 +510,20 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def set_super_user(self, button):
+
         if button == self.super_user:
             if not self._superuser_mode:
                 password, okPressed = QtWidgets.QInputDialog.getText(self, "Type superuser password", "Superuser pass:",
                                                                  QtWidgets.QLineEdit.PasswordEchoOnEdit, "")
                 if okPressed:
                     self._superuser_mode = password == self._super_user_pass
-
         else:
             self._superuser_mode = False
+
+        if self._superuser_mode:
+            logger.info('Set superuser')
+        else:
+            logger.info('Set regular user')
 
         self.normal_user.setChecked(not self._superuser_mode)
         self.super_user.setChecked(self._superuser_mode)
@@ -493,6 +532,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def config_error(self, text, informative_text='', detailed_text='', applying=False):
+
         self.msg = QtWidgets.QMessageBox()
         self.msg.setModal(False)
         self.msg.setIcon(QtWidgets.QMessageBox.Critical)
@@ -511,6 +551,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def info_dialog(self, text):
+
         self.msg = QtWidgets.QMessageBox()
         self.msg.setModal(False)
         self.msg.setIcon(QtWidgets.QMessageBox.Information)
@@ -540,6 +581,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             self.config_error("No configuration is selected", 'Activate one configuration')
             return
 
+        logger.info('Checking configuration {}'.format(config_to_export.info['name']))
         data = []
         used_names = {}
         used_addresses = {}
@@ -551,11 +593,12 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         wrong_attributes = {}
         rest_errors = {}
 
-        has_error = False
+        cofig_has_error = False
         active_mgs = {}
         for device in config_to_export.get_all_activated_devices():
             data.append(device.get_data_to_export())
             is_tango = False
+            has_error = False
             my_name = ''
             tango_address = None
             parameter = None
@@ -569,6 +612,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             for child in data[-1]:
                 if child.tag in ['name', 'sardananame'] and my_name != child.text:
                     if child.text in used_names.keys():
+                        logger.warning(
+                            'Checking configuration: {}: repeating name {}'.format(device.get_my_path(), child.text))
                         has_error = True
                         if child.text not in double_name.keys():
                             double_name[child.text] = [used_names[child.text], device.get_my_path()]
@@ -580,6 +625,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
                 elif child.tag == 'device' and not is_diffract:
                     if child.text in used_addresses.keys():
+                        logger.warning(
+                            'Checking configuration: {}: repeating address {}'.format(device.get_my_path(), child.text))
                         has_error = True
                         if child.text not in double_addresses.keys():
                             double_addresses[child.text] = [used_addresses[child.text], device.get_my_path()]
@@ -613,9 +660,13 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             if is_tango and not is_mg and not is_diffract:
                 if hostname is None:
                     rest_errors[my_name] = ['No hostname']
+                    logger.warning(
+                        'Checking configuration: {}: no hostname'.format(device.get_my_path()))
                     has_error = True
                 elif tango_address is None:
                     rest_errors[my_name] = ['No tango address']
+                    logger.warning(
+                        'Checking configuration: {}: no tango address'.format(device.get_my_path()))
                     has_error = True
                 else:
                     try:
@@ -627,24 +678,49 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                                     getattr(dev, parameter)
                                 except:
                                     has_error = True
+                                    logger.warning(
+                                        'Checking configuration: {}: wrong attribute {}'.format(device.get_my_path(),
+                                                                                                parameter))
                                     wrong_attributes[my_name] = [device.get_my_path()]
 
                         except PyTango.DevFailed:
                             has_error = True
+                            logger.warning(
+                                'Checking configuration: {}: device OFF'.format(device.get_my_path(),
+                                                                                hostname + '/' + tango_address))
                             off_devices[my_name] = [device.get_my_path()]
 
                     except PyTango.DevFailed:
                         has_error = True
+                        logger.warning(
+                            'Checking configuration: {}: wrong address'.format(device.get_my_path(),
+                                                                               hostname + '/' + tango_address))
                         wrong_addresses[my_name] = [device.get_my_path()]
 
+            if has_error:
+                cofig_has_error = True
+            else:
+                logger.info('Checking configuration: {} is OK'.format(device.get_my_path()))
+
         for name, devices in active_mgs.items():
-            devices = [device.strip().replace('timers=', '').replace('counters=', '') for device in devices.replace(' ', '').split(',')]
+            has_error = False
+            devices = [device.strip().replace('timers=', '').replace('counters=', '')
+                       for device in devices.replace(' ', '').split(',')]
             for device in devices:
                 if device not in used_names:
                     has_error = True
-                    rest_errors[name] = ['MG: {} not in configuration']
+                    logger.warning(
+                        'Checking configuration: {} listed in mg {} is  ot included in configuration'.format(
+                            device.get_my_path(), name))
+                    rest_errors[name] = ['MG {}: {} not in configuration'.format(name, device.get_my_path())]
 
-        if has_error:
+            if has_error:
+                cofig_has_error = True
+            else:
+                logger.info('Checking configuration: mg {} is OK'.format(name))
+
+        if cofig_has_error:
+            logger.info('Checking configuration done. Errors found')
             details = ''
             if len(double_name):
                 details += 'DUPLICATE NAMES:\n'
@@ -672,6 +748,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 else:
                     return None
         else:
+            logger.info('Checking configuration done. All is OK')
             if only_check:
                 self.info_dialog('Configuration is OK')
             else:
@@ -682,6 +759,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.save_library()
         data = self.check_configuration(False)
         if data is not None:
+
+            logger.info('Applying configuration: saving to {}'.format(self._online_path))
+
             root = ET.Element("hw")
             root.text = '\n'
 
@@ -701,6 +781,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def modify_filters(self, text):
+
+        logger.info('Filtering {}'.format(text))
 
         self.online_proxy.setFilterRegExp(text)
         self.online_proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
@@ -739,6 +821,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def clean_close(self):
         """
         """
+        logger.info('Close: removing tmp files from {}'.format(self._temp_dir))
+
         self._save_ui_settings()
         self.save_library()
 
@@ -792,6 +876,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             all_ok *= False
         else:
             self._online_path = str(path)
+            logger.info('Load settings: online.xml path {}'.format(self._online_path))
 
         password = settings.value('SuperuserPassword')
         if password is None:
@@ -801,6 +886,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         try:
             self._superuser_mode = bool(settings.value('DefaultSuperuser'))
+            logger.info('Load settings: DEFAULT SUPERUSER!!!')
         except:
             self._superuser_mode = False
 
@@ -832,7 +918,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         save_lib_action = QtWidgets.QAction('Save library', self)
         # save_lib_as.setShortcut('Ctrl+S')
-        save_lib_action.triggered.connect(self.save_library)
+        save_lib_action.triggered.connect(lambda: self.save_library())
 
         saveas_lib_action = QtWidgets.QAction('Save library as', self)
         # save_lib_as.setShortcut('Ctrl+S')

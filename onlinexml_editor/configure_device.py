@@ -6,7 +6,7 @@ from PyQt5 import QtWidgets, QtCore
 
 from onlinexml_editor.gui.new_device_ui import Ui_AddDevice
 from onlinexml_editor.property_widget import PropertyWidget
-from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode
+from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode, ConfigurationNode
 
 
 class ConfigureDevice(QtWidgets.QDialog):
@@ -36,10 +36,16 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._ui.cmd_add_personal_property.clicked.connect(lambda: self._add_property('personal'))
 
         if options['new']:
+
+            self._type = options['type']
             self.new_device = True
-            self._part_of_serial = options['part_of_serial']
-            if not self._part_of_serial:
+
+            if self._type == 'non_serial':
                 self._ui.cmb_type.addItems(['group', 'serial_device', 'single_device'])
+
+            elif self._type == 'configuration':
+                self._ui.cmb_type.addItems(['configuration'])
+
             else:
                 self._ui.cmb_type.addItem('single_device')
                 self._ui.fr_personal_properties.setVisible(True)
@@ -52,30 +58,24 @@ class ConfigureDevice(QtWidgets.QDialog):
             self.edited_device = options['device']
             self._sub_device = options['sub_device']
 
-            self._part_of_serial = False
+            if isinstance(self.edited_device, SerialDeviceNode):
+                self._type = 'serial'
+                self._ui.fr_common_properties.setVisible(True)
+                for key, value in self.edited_device.info.items():
+                    if key not in ['active', 'comment', 'name']:
+                        self._add_property('common', key, value, False)
 
-            if isinstance(self.edited_device, SerialDeviceNode) or isinstance(self.edited_device, GroupNode):
-                if isinstance(self.edited_device, SerialDeviceNode):
-                    self._part_of_serial = True
-                    self._ui.fr_common_properties.setVisible(True)
-                    for key, value in self.edited_device.info.items():
-                        if key not in ['active', 'comment', 'name']:
-                            self._add_property('common', key, value, False)
+                device = self.edited_device.children[self._sub_device]
+                self._ui.fr_personal_properties.setVisible(True)
+                self._ui.le_name.setText(device.info['name'])
+                self._ui.le_comment.setText(device.info['comment'])
 
-                if self._sub_device is None:
-                    self._ui.le_name.setText(self.edited_device.info['name'])
-                    self._ui.le_comment.setText(self.edited_device.info['comment'])
-                else:
-                    device = self.edited_device.children[self._sub_device]
-                    self._ui.fr_personal_properties.setVisible(True)
-                    self._ui.le_name.setText(device.info['name'])
-                    self._ui.le_comment.setText(device.info['comment'])
-
-                    for key, value in device.info.items():
-                        if key not in ['active', 'comment', 'name']:
-                            self._add_property('personal', key, value, False)
+                for key, value in device.info.items():
+                    if key not in ['active', 'comment', 'name']:
+                        self._add_property('personal', key, value, False)
 
             else:
+                self._type = 'non_serial'
                 self._ui.fr_personal_properties.setVisible(True)
                 self._ui.le_name.setText(self.edited_device.info['name'])
                 self._ui.le_comment.setText(self.edited_device.info['comment'])
@@ -166,7 +166,7 @@ class ConfigureDevice(QtWidgets.QDialog):
     # ----------------------------------------------------------------------
     def _add_property(self, type, name='', value='', doRefresh=True):
 
-        if self._part_of_serial and type == 'personal':
+        if self._type == 'serial' and type == 'personal':
             if name == '':
                 name = 'sardananame'
             if name in ['device', 'sardananame']:

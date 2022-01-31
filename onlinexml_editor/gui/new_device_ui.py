@@ -11,7 +11,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_AddDevice(object):
     def setupUi(self, AddDevice):
         AddDevice.setObjectName("AddDevice")
-        AddDevice.resize(348, 354)
+        AddDevice.resize(603, 583)
         AddDevice.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.UnitedStates))
         self.verticalLayout = QtWidgets.QVBoxLayout(AddDevice)
         self.verticalLayout.setObjectName("verticalLayout")

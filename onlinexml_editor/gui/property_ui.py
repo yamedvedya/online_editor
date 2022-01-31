@@ -11,7 +11,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Property(object):
     def setupUi(self, Property):
         Property.setObjectName("Property")
-        Property.resize(469, 41)
+        Property.resize(469, 43)
         self.horizontalLayout = QtWidgets.QHBoxLayout(Property)
         self.horizontalLayout.setContentsMargins(0, -1, 0, -1)
         self.horizontalLayout.setObjectName("horizontalLayout")
@@ -37,7 +37,7 @@ class Ui_Property(object):
     def retranslateUi(self, Property):
         _translate = QtCore.QCoreApplication.translate
         Property.setWindowTitle(_translate("Property", "Form"))
-        self.label_1.setText(_translate("Property", "Name:"))
+        self.label_1.setText(_translate("Property", "Property:"))
         self.label_2.setText(_translate("Property", "Value:"))
         self.cmd_delete.setText(_translate("Property", "Delete"))
 
