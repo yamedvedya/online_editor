@@ -31,8 +31,8 @@ NAME = 'onlinexml_editor'
 DESCRIPTION = 'Utility to edit online.xml files, used in Sardana'
 EMAIL = 'yury.matveev@desy.de'
 AUTHOR = 'Yury Matveyev'
-REQUIRES_PYTHON = '>=3.5'
-VERSION = '1.0.2'
+REQUIRES_PYTHON = '>=3.7'
+VERSION = '1.1.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
