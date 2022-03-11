@@ -8,6 +8,7 @@ from onlinexml_editor.gui.settings_ui import Ui_AppSettings
 from onlinexml_editor.password import PasswordSetup
 from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
+SYSTEM_DEFAULT_ONLINE_XML = '/usr/local/experiment/online_dir/online.xml'
 
 # ----------------------------------------------------------------------
 class AppSettings(QtWidgets.QDialog):
@@ -33,6 +34,9 @@ class AppSettings(QtWidgets.QDialog):
         path = settings.value('OnlinePath')
         if path is not None:
             self._ui.le_online_path.setText(str(path))
+        else:
+            if os.path.exists(SYSTEM_DEFAULT_ONLINE_XML):
+                self._ui.le_online_path.setText(SYSTEM_DEFAULT_ONLINE_XML)
 
         try:
             if bool(settings.value("DefaultSuperuser")):

@@ -11,7 +11,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_AppSettings(object):
     def setupUi(self, AppSettings):
         AppSettings.setObjectName("AppSettings")
-        AppSettings.resize(309, 276)
+        AppSettings.resize(650, 276)
+        AppSettings.setMinimumSize(QtCore.QSize(650, 0))
         AppSettings.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.UnitedStates))
         self.verticalLayout = QtWidgets.QVBoxLayout(AppSettings)
         self.verticalLayout.setObjectName("verticalLayout")
