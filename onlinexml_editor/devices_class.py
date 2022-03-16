@@ -188,17 +188,20 @@ class Node(object):
         return True
 
     # ----------------------------------------------------------------------
-    def flags(self, column):
+    def flags(self, column, superuser_mode):
 
         if column == check_column:
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable
-        elif column == 0:
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable | \
-                   QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled | QtCore.Qt.ItemIsEditable
-        elif column == type_column and not isinstance(self, DeviceNode):
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+        if superuser_mode:
+            if column == 0:
+                return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable | \
+                       QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled | QtCore.Qt.ItemIsEditable
+            elif column == type_column and not isinstance(self, DeviceNode):
+                return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+            else:
+                return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable
         else:
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable
+            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
 
     # ----------------------------------------------------------------------
     def is_activated(self):

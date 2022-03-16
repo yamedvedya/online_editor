@@ -24,7 +24,12 @@ class OnlineModel(QtCore.QAbstractItemModel):
         self.root = root
         self._last_num_column = 0
         self._drag_drop_storage = {}
+        self._superuser_mode = False
         super(OnlineModel, self).__init__()
+
+    # ----------------------------------------------------------------------
+    def set_superuser_mode(self, mode):
+        self._superuser_mode = mode
 
     # ----------------------------------------------------------------------
     def supportedDropActions(self):
@@ -110,7 +115,7 @@ class OnlineModel(QtCore.QAbstractItemModel):
     # ----------------------------------------------------------------------
     def flags(self, index):
         node = self.get_node(index)
-        return node.flags(index.column())
+        return node.flags(index.column(), self._superuser_mode)
 
     # ----------------------------------------------------------------------
     def headerData(self, section, orientation, role):

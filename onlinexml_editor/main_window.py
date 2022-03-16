@@ -514,7 +514,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         if button == self.super_user:
             if not self._superuser_mode:
                 password, okPressed = QtWidgets.QInputDialog.getText(self, "Type superuser password", "Superuser pass:",
-                                                                 QtWidgets.QLineEdit.PasswordEchoOnEdit, "")
+                                                                 QtWidgets.QLineEdit.Password, "")
                 if okPressed:
                     self._superuser_mode = password == self._super_user_pass
         else:
@@ -527,6 +527,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         self.normal_user.setChecked(not self._superuser_mode)
         self.super_user.setChecked(self._superuser_mode)
+
+        self.online_model.set_superuser_mode(self._superuser_mode)
+        self.device_model.set_superuser_mode(self._superuser_mode)
 
         self.refresh_tables()
 
