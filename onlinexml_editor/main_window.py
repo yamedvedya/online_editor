@@ -78,12 +78,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.online_proxy.setFilterKeyColumn(-1)
 
         self._ui.tw_online.setModel(self.online_proxy)
-        self._ui.tw_online.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
-        self._ui.tw_online.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
 
         self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
-        self._ui.tw_online.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
 
         # this is a proxy for displaying only selected file
         self.viewed_devices = []
