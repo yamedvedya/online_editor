@@ -78,19 +78,23 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.online_proxy.setFilterKeyColumn(-1)
 
         self._ui.tw_online.setModel(self.online_proxy)
+        self._ui.tw_online.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
+        self._ui.tw_online.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
+
+        self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
+        self._ui.tw_online.setSelectionBehavior(QtWidgets.QTreeView.SelectRows)
 
         # this is a proxy for displaying only selected file
-        self.viewed_device = None
-        self.viewed_device_map = {}
+        self.viewed_devices = []
+        self.viewed_devices_map = {}
         self.device_model = DeviceModel()
         self.device_proxy = ProxyDeviceModel()
         self.device_proxy.setSourceModel(self.device_model)
 
         self._ui.tb_device.setModel(self.device_proxy)
         self._ui.tb_device.clicked.connect(lambda: self._ui.but_edit_properties.setEnabled(True))
-
-        self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
+        self._ui.tb_device.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
 
         self.online_model.dataChanged.connect(self.new_online_selected)
 
@@ -280,22 +284,54 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             DeviceNode(root, item, row=row_to_insert)
 
     # ----------------------------------------------------------------------
-    def new_device_to_table(self, index):
-        # pass
+    def index_to_viewed_device(self, index):
 
         index = self.online_proxy.mapToSource(index)
-        self.viewed_device = None
 
         if self.online_model.is_single_device(index) or self.online_model.is_group(index):
-            self.viewed_device = self.online_model.get_node(index)
+            return self.online_model.get_node(index), index
 
         elif self.online_model.is_serial_device(index) or self.online_model.is_part_or_serial_device(index):
             device = self.online_model.get_node(index)
             if self.online_model.is_part_or_serial_device(index):
                 device = device.parent
-            self.viewed_device = device
+                index = index.parent()
+            return device, index
 
-        logger.debug('Displaying {}'.format(self.viewed_device.info['name']))
+        return None, None
+
+    # ----------------------------------------------------------------------
+    def get_row_path(self, index, path=''):
+
+        if index.parent().isValid():
+            path = self.get_row_path(index.parent(), path)
+
+        path += str(index.row())
+
+        return path
+
+    # ----------------------------------------------------------------------
+    def new_device_to_table(self, added_selection, released_selection):
+
+        for index in released_selection.indexes():
+            removed_device, index = self.index_to_viewed_device(index)
+            if removed_device is not None:
+                for device, path in self.viewed_devices:
+                    if removed_device == device:
+                        self.viewed_devices.remove((device, path))
+
+        for index in added_selection.indexes():
+            new_device, index = self.index_to_viewed_device(index)
+            if new_device is not None:
+                device_not_found = True
+                for device, _ in self.viewed_devices:
+                    device_not_found *= new_device != device
+                if device_not_found:
+                    self.viewed_devices.append((new_device, self.get_row_path(index)))
+
+        self.viewed_devices.sort(key=lambda x: x[1])
+
+        logger.debug('Displaying {}'.format(';'.join([device.info['name'] for device, _ in self.viewed_devices])))
 
         self.refresh_table()
 
@@ -303,40 +339,41 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def refresh_table(self):
 
         self.device_model.clear()
-        self.viewed_device_map = {}
+        self.viewed_devices_map = {}
         self._ui.but_edit_properties.setEnabled(False)
 
-        if isinstance(self.viewed_device, SerialDeviceNode):
-            self.device_model.start_adding_row(self.viewed_device.child_count)
-            for idx, children in enumerate(self.viewed_device.children):
-                DeviceNode(self.device_model.root, children.info, self.viewed_device.info)
-                self.viewed_device_map[idx] = idx
-            self.device_model.finish_row_changes()
+        for device, _ in self.viewed_devices:
+            current_row = self.device_model.rowCount()
+            if isinstance(device, SerialDeviceNode):
+                self.device_model.start_adding_row(device.child_count, current_row)
+                for idx, children in enumerate(device.children):
+                    node = DeviceNode(self.device_model.root, children.info, device.info)
+                    self.viewed_devices_map[node] = (device, idx)
+                self.device_model.finish_row_changes()
 
-        elif isinstance(self.viewed_device, DeviceNode):
-            self.device_model.start_adding_row(1)
-            DeviceNode(self.device_model.root, self.viewed_device.info)
-            self.device_model.finish_row_changes()
+            elif isinstance(device, DeviceNode):
+                self.device_model.start_adding_row(1, current_row)
+                DeviceNode(self.device_model.root, device.info)
+                self.device_model.finish_row_changes()
 
-        elif isinstance(self.viewed_device, GroupNode):
-            num_devices = 0
-            for children in self.viewed_device.children:
-                if isinstance(children, DeviceNode):
-                    num_devices += 1
-            self.device_model.start_adding_row(num_devices)
-            num_devices = 0
-            for idx, children in enumerate(self.viewed_device.children):
-                if isinstance(children, DeviceNode):
-                    DeviceNode(self.device_model.root, children.info)
-                    self.viewed_device_map[num_devices] = idx
-                    num_devices += 1
-            self.device_model.finish_row_changes()
+            elif isinstance(device, GroupNode):
+                num_devices = 0
+                for children in device.children:
+                    if isinstance(children, DeviceNode):
+                        num_devices += 1
+                self.device_model.start_adding_row(num_devices, current_row)
+                num_devices = 0
+                for idx, children in enumerate(device.children):
+                    if isinstance(children, DeviceNode):
+                        DeviceNode(self.device_model.root, children.info)
+                        num_devices += 1
+                self.device_model.finish_row_changes()
 
-        self.device_model.add_columns()
-        if isinstance(self.viewed_device, SerialDeviceNode):
-            for column in range(3, self._ui.tb_device.horizontalHeader().count()-1):
-                if self.device_model.headerData(column, QtCore.Qt.Horizontal, QtCore.Qt.DisplayRole) not in ['sardananame', 'comment']:
-                    self._ui.tb_device.setSpan(0, column, self.device_model.rowCount(), 1)
+            self.device_model.add_columns()
+            if isinstance(device, SerialDeviceNode):
+                for column in range(3, self._ui.tb_device.horizontalHeader().count()-1):
+                    if self.device_model.headerData(column, QtCore.Qt.Horizontal, QtCore.Qt.DisplayRole) not in ['sardananame', 'comment']:
+                        self._ui.tb_device.setSpan(current_row, column, device.child_count, 1)
 
         self.refresh_tables()
 
@@ -478,7 +515,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
     # ----------------------------------------------------------------------
     def edit_device_properties(self):
-        if self.viewed_device is not None:
+        if len(self.viewed_devices):
 
             selected_index = self.device_proxy.mapToSource(self._ui.tb_device.selectionModel().currentIndex())
             selected_device = self.device_model.get_node(selected_index)
@@ -486,9 +523,10 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             logger.debug('Edit properties for {}'.format(selected_device.info['name']))
 
             params = {'new':  False}
-            if isinstance(self.viewed_device, SerialDeviceNode):
-                params['device'] = self.viewed_device
-                params['sub_device'] = self.viewed_device_map[selected_device.row]
+
+            if selected_device in self.viewed_devices_map:
+                params['device'] = self.viewed_devices_map[selected_device][0]
+                params['sub_device'] = self.viewed_devices_map[selected_device][1]
             else:
                 params['device'] = selected_device
                 params['sub_device'] = None
@@ -979,7 +1017,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.online_model.dataChanged.connect(self._data_modified)
         self.device_model.dataChanged.connect(self._data_modified)
 
-        self._ui.tw_online.selectionModel().currentChanged.connect(self.new_device_to_table)
+        self._ui.tw_online.selectionModel().selectionChanged.connect(self.new_device_to_table)
         self._ui.tb_device.clicked.connect(self.table_clicked)
 
     # ----------------------------------------------------------------------
