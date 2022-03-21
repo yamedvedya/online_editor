@@ -35,9 +35,6 @@
        <enum>Qt::Vertical</enum>
       </property>
       <widget class="QTreeView" name="tw_online">
-       <property name="acceptDrops">
-        <bool>true</bool>
-       </property>
        <property name="editTriggers">
         <set>QAbstractItemView::DoubleClicked</set>
        </property>
@@ -51,7 +48,7 @@
         <enum>Qt::MoveAction</enum>
        </property>
        <property name="selectionMode">
-        <enum>QAbstractItemView::ContiguousSelection</enum>
+        <enum>QAbstractItemView::ExtendedSelection</enum>
        </property>
        <property name="horizontalScrollMode">
         <enum>QAbstractItemView::ScrollPerItem</enum>

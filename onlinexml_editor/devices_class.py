@@ -4,6 +4,7 @@ from copy import deepcopy
 from xml.etree import cElementTree as ET
 
 from PyQt5 import QtCore, QtGui
+from enum import Enum
 
 import onlinexml_editor.headers as headers # device_headers, online_headers, possible_headers
 
@@ -12,6 +13,11 @@ device_view_role = QtCore.Qt.UserRole + 1
 check_column = 1
 type_column = 2
 
+
+class SupportAdd(Enum):
+    NO_ADD = 0
+    ONLY_DEVICE = 1
+    ANY = 2
 
 # ----------------------------------------------------------------------
 class Node(object):
@@ -251,7 +257,7 @@ class Node(object):
 
     # ----------------------------------------------------------------------
     def accept_add(self):
-        return False
+        return SupportAdd.NO_ADD
 
     # ----------------------------------------------------------------------
     def get_my_path(self):
@@ -271,9 +277,9 @@ class Node(object):
     # ----------------------------------------------------------------------
     def accept_paste(self, clipboard):
 
-        def _check_serial_device(info):
+        def _check_serial_device(info, device):
             equal = True
-            for child in clipboard:
+            for child in device:
                 if child.tag not in ['name', 'device', 'sardananame']:
                     if child.tag in info:
                         equal *= child.text == info[child.tag]
@@ -282,27 +288,27 @@ class Node(object):
 
             return equal
 
-        def _get_cut_device():
-            device = ET.Element('single_device', attrib=clipboard.attrib)
-            for child in clipboard:
+        def _get_cut_device(device):
+            out_device = ET.Element('single_device', attrib=device.attrib)
+            for child in device:
                 if child.tag == 'device':
-                    _make_sub_element('device', child.text, device, '')
+                    _make_sub_element('device', child.text, out_device, '')
 
-            return device
+            return out_device
 
-        paste_enabled = False
-        device_to_paste = clipboard
-        if clipboard is not None:
-            # if we have group to paste
-            if isinstance(self, GroupNode) or isinstance(self, ConfigurationNode):
-                paste_enabled = True
+        if type(self) is SerialDeviceNode:
+            devices_to_paste = []
+            for device in clipboard:
+                if not _check_serial_device(self.info, device):
+                    return False, None
+                devices_to_paste.append(_get_cut_device(device))
 
-            elif isinstance(self, SerialDeviceNode):
-                if _check_serial_device(self.info):
-                    paste_enabled = True
-                    device_to_paste = _get_cut_device()
+            return True, devices_to_paste
 
-        return paste_enabled, device_to_paste
+        if type(self) is GroupNode or type(self) is ConfigurationNode:
+            return True, clipboard
+
+        return False, None
 
     # ----------------------------------------------------------------------
     def get_converted(self):
@@ -484,7 +490,7 @@ class GroupNode(Node):
 
     # ----------------------------------------------------------------------
     def accept_add(self):
-        return True
+        return SupportAdd.ANY
 
 
 # ----------------------------------------------------------------------
@@ -500,7 +506,7 @@ class SerialDeviceNode(GroupNode):
 
     # ----------------------------------------------------------------------
     def accept_add(self):
-        return True
+        return SupportAdd.ONLY_DEVICE
 
 
 # ----------------------------------------------------------------------
@@ -528,7 +534,7 @@ class ConfigurationNode(GroupNode):
 
     # ----------------------------------------------------------------------
     def accept_add(self):
-        return True
+        return SupportAdd.ANY
 
 
 # ----------------------------------------------------------------------

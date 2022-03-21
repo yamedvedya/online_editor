@@ -15,7 +15,7 @@ device_view_role = QtCore.Qt.UserRole + 1
 class OnlineModel(QtCore.QAbstractItemModel):
 
     root_index = QtCore.QModelIndex()
-    drag_drop_signal = QtCore.pyqtSignal(str, QtCore.QModelIndex, int, QtCore.QModelIndex)
+    drag_drop_signal = QtCore.pyqtSignal(str, QtCore.QModelIndex, int, list)
 
     # ----------------------------------------------------------------------
     def __init__(self, root=None):
@@ -40,10 +40,15 @@ class OnlineModel(QtCore.QAbstractItemModel):
         return ['onlineditor/device']
 
     # ----------------------------------------------------------------------
-    def mimeData(self, index):
-        if index[0].isValid():
-            key = time.time()
-            self._drag_drop_storage[key] = index[0]
+    def mimeData(self, indexes):
+        key = time.time()
+        self._drag_drop_storage[key] = []
+        have_valid = False
+        for index in indexes:
+            if index.isValid():
+                self._drag_drop_storage[key].append(index)
+                have_valid = True
+        if have_valid:
             mime_data = QtCore.QMimeData()
             mime_data.setData('onlineditor/device', pickle.dumps(key))
             return mime_data
@@ -57,12 +62,12 @@ class OnlineModel(QtCore.QAbstractItemModel):
         dropped_key = pickle.loads(mime_data.data('onlineditor/device'))
 
         if dropped_key in self._drag_drop_storage:
-            dragged_index = self._drag_drop_storage[dropped_key]
+            dragged_indexes = self._drag_drop_storage[dropped_key]
             if action == QtCore.Qt.CopyAction:
-                self.drag_drop_signal.emit('copy', parent_index, row, dragged_index)
+                self.drag_drop_signal.emit('copy', parent_index, row, dragged_indexes)
                 return True
             elif action == QtCore.Qt.MoveAction:
-                self.drag_drop_signal.emit('move', parent_index, row, dragged_index)
+                self.drag_drop_signal.emit('move', parent_index, row, dragged_indexes)
                 return True
 
         return False

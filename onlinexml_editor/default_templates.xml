@@ -1,0 +1,42 @@
+<templates>
+    <device name="MEASUREMENT_GROUP">
+        <personal name="" mgs="" device="None"/>
+        <common type="measurement_group" module="None" control="tango" hostname="___local___"/>
+    </device>
+    <device name="OMS_MOTOR">
+        <personal name="" device=""/>
+        <common type="stepping_motor" module="oms58" control="tango" hostname="___local___"/>
+    </device>
+    <device name="TANGO_MOTOR">
+        <personal name="" device=""/>
+        <common type="type_tango" module="motor_tango" control="tango" hostname="___local___"/>
+    </device>
+    <device name="DGG2_TIMER">
+        <personal name="" device=""/>
+        <common type="timer" module="dgg2" control="tango" hostname="___local___"/>
+    </device>
+    <device name="SIS3610 REGISTER IN">
+        <personal name="" device=""/>
+        <common type="input_register" module="sis3610" control="tango" hostname="___local___"/>
+    </device>
+    <device name="SIS3610 REGISTER OUT">
+        <personal name="" device=""/>
+        <common type="output_register" module="sis3610" control="tango" hostname="___local___"/>
+    </device>
+    <device name="SIS3820 COUNTER">
+        <personal name="" device=""/>
+        <common type="counter" module="sis3820" control="tango" hostname="___local___"/>
+    </device>
+    <device name="ATTRIBUTE ZERO CONTROLLER">
+        <personal name="" device=""/>
+        <common type="counter" module="tangoattributezerodctrl" control="tango" hostname="___local___"/>
+    </device>
+    <device name="ATTRIBUTE CONTROLLER">
+        <personal name="" device=""/>
+        <common type="counter" module="tangoattributectctrl" control="tango" hostname="___local___"/>
+    </device>
+    <device name="LAMBDA DETECTOR">
+        <personal name="" device=""/>
+        <common type="DETECTOR" module="lambda" control="tango" hostname="___local___"/>
+    </device>
+</templates>

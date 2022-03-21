@@ -21,7 +21,8 @@ from PyQt5 import QtWidgets, QtCore
 
 from onlinexml_editor.aboutdialog import AboutDialog
 from onlinexml_editor.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
-from onlinexml_editor.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, check_column
+from onlinexml_editor.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, \
+    check_column, SupportAdd
 from onlinexml_editor.configure_device import ConfigureDevice
 from onlinexml_editor.columns_selector import ColumnSelector
 from onlinexml_editor.settings import AppSettings
@@ -78,9 +79,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.online_proxy.setFilterKeyColumn(-1)
 
         self._ui.tw_online.setModel(self.online_proxy)
-
         self._ui.tw_online.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self._ui.tw_online.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos))
+        self._ui.tw_online.setWordWrap(True)
 
         # this is a proxy for displaying only selected file
         self.viewed_devices = []
@@ -92,8 +93,12 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self._ui.tb_device.setModel(self.device_proxy)
         self._ui.tb_device.clicked.connect(lambda: self._ui.but_edit_properties.setEnabled(True))
         self._ui.tb_device.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
+        self._ui.tb_device.setWordWrap(True)
 
         self.online_model.dataChanged.connect(self.new_online_selected)
+
+        self.online_model.set_superuser_mode(self._superuser_mode)
+        self.device_model.set_superuser_mode(self._superuser_mode)
 
         self._ui.but_edit_properties.setEnabled(False)
 
@@ -139,13 +144,13 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         new_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open new library file', str(Path.home()),
                                                             'Library files (*.xml)')
         if new_file:
+            self.save_history()
             if new_file == self._online_path:
                 logger.info('Importing current online.xml from {}'.format(new_file))
                 self.import_lib()
             else:
                 logger.info('Opening new file {}'.format(new_file))
                 self._read_lib(new_file)
-            self.save_history()
             return True
         else:
             return False
@@ -183,6 +188,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.online_model.finish_row_changes()
         self.save_library()
 
+        self.refresh_tables()
+
         return True
 
     # ----------------------------------------------------------------------
@@ -190,7 +197,12 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         """
         """
         self._ui.tb_device.viewport().update()
+        for ind in range(self._ui.tb_device.horizontalHeader().count()):
+            self._ui.tb_device.horizontalHeader().setSectionResizeMode(ind, QtWidgets.QHeaderView.ResizeToContents)
+
         self._ui.tw_online.viewport().update()
+        for ind in range(self._ui.tw_online.header().count()):
+            self._ui.tw_online.header().setSectionResizeMode(ind, QtWidgets.QHeaderView.ResizeToContents)
 
     # --------------------------------------------------------------------
     def _read_lib(self, file_name):
@@ -210,6 +222,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         self.online_model.finish_row_changes()
 
+        self.refresh_tables()
+
         return True
 
     # ----------------------------------------------------------------------
@@ -217,16 +231,16 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self._last_modified = time.time()
         logger.debug('Data modified at {}'.format(self._last_modified))
 
-        self._ui.tb_device.viewport().update()
-        self._ui.tw_online.viewport().update()
+        self.refresh_tables()
 
     # ----------------------------------------------------------------------
     def undo(self):
-
-        self._last_edit_step -= 1
         f_name = os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step)))
         logger.debug('Undo: last edit step {}, load history file {}'.format(self._last_edit_step, f_name))
         self._read_lib(f_name)
+        self._last_edit_step -= 1
+        self.undo_action.setEnabled(self._last_edit_step >= 0)
+        self.refresh_tables()
 
     # ----------------------------------------------------------------------
     def save_history(self):
@@ -234,6 +248,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         f_name = os.path.join(self._temp_dir, '{:s}.xml'.format(str(self._last_edit_step)))
         logger.debug('Save history file: last edit step {}, file {}'.format(self._last_edit_step, f_name))
         self._drop_library(f_name)
+        self.undo_action.setEnabled(True)
+        self.refresh_tables()
 
     # ----------------------------------------------------------------------
     def save_library(self, file_name=None):
@@ -262,6 +278,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def table_clicked(self):
         self._ui.tb_device.viewport().update()
+        for ind in range(self._ui.tb_device.horizontalHeader().count()):
+            pass
 
     # ----------------------------------------------------------------------
     def _parse_group(self, root, data):
@@ -310,14 +328,14 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def new_device_to_table(self, added_selection, released_selection):
 
-        for index in released_selection.indexes():
+        for index in released_selection.indexes()[::self.online_proxy.columnCount()]:
             removed_device, index = self.index_to_viewed_device(index)
             if removed_device is not None:
                 for device, path in self.viewed_devices:
                     if removed_device == device:
                         self.viewed_devices.remove((device, path))
 
-        for index in added_selection.indexes():
+        for index in added_selection.indexes()[::self.online_proxy.columnCount()]:
             new_device, index = self.index_to_viewed_device(index)
             if new_device is not None:
                 device_not_found = True
@@ -382,7 +400,12 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         menu = QtWidgets.QMenu()
 
-        add_action = QtWidgets.QAction('Add')
+        add_menu = QtWidgets.QMenu('Add...')
+
+        add_group = QtWidgets.QAction('Group')
+        add_serial = QtWidgets.QAction('Serial devices')
+        add_device = QtWidgets.QAction('Device')
+
         paste_action = QtWidgets.QAction('Paste')
         copy_config = QtWidgets.QAction('Paste')
         copy_action = QtWidgets.QAction('Copy')
@@ -391,104 +414,138 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         new_action = QtWidgets.QAction('New configuration')
         convert_action = QtWidgets.QAction()
 
-        selected_device = None
-        selected_index = None
-        clip_device = None
+        clip_devices = []
 
-        if self._ui.tw_online.indexAt(pos).isValid():
-            selected_index = self.online_proxy.mapToSource(self._ui.tw_online.selectionModel().currentIndex())
-            # selected_index = self._ui.tw_online.selectionModel().currentIndex()
-            selected_device = self.online_model.get_node(selected_index)
+        selected_indexes = [self.online_proxy.mapToSource(index) for index in
+                            self._ui.tw_online.selectionModel().selectedIndexes()][::self.online_proxy.columnCount()]
+        selected_devices = [self.online_model.get_node(index) for index in selected_indexes]
 
-            if selected_device.accept_add():
-                menu.addAction(add_action)
+        clicked_index = self._ui.tw_online.indexAt(pos)
 
-            paste_enabled, clip_device = selected_device.accept_paste(self.clipboard)
-            if paste_enabled:
-                menu.addAction(paste_action)
+        if clicked_index.isValid():
+            clicked_index = self.online_proxy.mapToSource(clicked_index)
+            clicked_device = self.online_model.get_node(clicked_index)
 
-            convert_enable, caption = selected_device.can_be_converted()
-            if convert_enable:
-                convert_action.setText(caption)
-                menu.addAction(convert_action)
+            if len(selected_indexes) == 1:
+                add_support = clicked_device.accept_add()
+                if add_support in [SupportAdd.ONLY_DEVICE, SupportAdd.ANY]:
+                    if add_support ==  SupportAdd.ANY:
+                        add_menu.addAction(add_group)
+                        add_menu.addAction(add_serial)
+                    add_menu.addAction(add_device)
+                    menu.addMenu(add_menu)
+
+                paste_enabled, clip_devices = clicked_device.accept_paste(self.clipboard)
+                if paste_enabled:
+                    menu.addAction(paste_action)
+
+                convert_enable, caption = clicked_device.can_be_converted()
+                if convert_enable:
+                    convert_action.setText(caption)
+                    menu.addAction(convert_action)
 
             menu.addAction(cut_action)
             menu.addAction(copy_action)
             menu.addAction(del_action)
 
         else:
+            clicked_device = None
             menu.addAction(new_action)
-            if self.clipboard is not None and self.clipboard.tag == 'configuration':
-                clip_device = self.clipboard
+            if self.clipboard is not None and len(self.clipboard) == 1 and self.clipboard[0].tag == 'configuration':
+                clip_devices = self.clipboard
                 menu.addAction(copy_config)
 
         action = menu.exec_(self.mapToGlobal(pos))
 
-        log_msg = 'Context menu: action: {}'.format(action.text().lower())
+        if action is not None:
+            try:
+                self._last_modified = time.time()
+                self.save_history()
 
-        if selected_device is not None:
-            log_msg += ', selected_device: {}'.format(selected_device.info['name'])
+                log_msg = 'Context menu: action: {}, '.format(action.text().lower())
 
-        if clip_device is not None:
-            log_msg += ', clip_device: {}'.format(clip_device.attrib['name'])
+                if clicked_device is not None:
+                    log_msg += ', clicked_device: {}'.format(clicked_device.info['name'])
 
-        logger.debug(log_msg)
+                for device in selected_devices:
+                    log_msg += ', selected_device: {}'.format(device.info['name'])
 
-        if action == copy_action:
-            self.clipboard = selected_device.get_data_to_copy()
+                if clip_devices is not None:
+                    for device in clip_devices:
+                        log_msg += ', clip_device: {}'.format(device.attrib['name'])
 
-        elif action == cut_action:
-            self.clipboard = selected_device.get_data_to_copy()
-            self.online_model.remove(selected_index)
+                logger.debug(log_msg)
 
-        elif action == del_action:
-            self.online_model.remove(selected_index)
+                if action == copy_action:
+                    self.clipboard = [device.get_data_to_copy() for device in selected_devices]
 
-        elif action == paste_action:
-            self.add_element(selected_index, clip_device, index=selected_index)
+                elif action == cut_action:
+                    self.clipboard = [device.get_data_to_copy() for device in selected_devices]
+                    for index in selected_indexes:
+                        self.online_model.remove(index)
 
-        elif action == copy_config:
-            self.add_config(self.clipboard)
+                elif action == del_action:
+                    for index in selected_indexes:
+                        self.online_model.remove(index)
 
-        elif action == convert_action:
-            new_device = selected_device.get_converted()
-            self.add_element(selected_index.parent(), new_device, index=selected_index)
-            self.online_model.remove(selected_index)
+                elif action == paste_action:
+                    for device in clip_devices:
+                        self.add_element(clicked_index, device, index=clicked_index)
 
-        elif action == add_action:
-            dialog = ConfigureDevice(self, {'new': True,
-                                            'type': 'serial' if self.online_model.is_serial_device(selected_index)
-                                                             else 'non_serial'})
-            if dialog.exec_():
-                self.add_element(selected_index, dialog.new_device, index=selected_index)
+                elif action == copy_config:
+                    self.add_config(self.clipboard)
 
-        elif action == new_action:
-            dialog = ConfigureDevice(self, {'new': True, 'type': 'configuration'})
-            if dialog.exec_():
-                self.add_element(QtCore.QModelIndex(), dialog.new_device,
-                                 row=self.online_model.get_node(self.online_model.root_index).child_count)
+                elif action == convert_action:
+                    new_device = clicked_device.get_converted()
+                    self.add_element(clicked_index.parent(), new_device, index=clicked_index)
+                    self.online_model.remove(clicked_index)
 
-        self._last_modified = time.time()
-        self.save_history()
-        self.refresh_tables()
+                elif action in [add_group, add_serial, add_device]:
+                    if action == add_group:
+                        type = 'group'
+                    elif action == add_serial:
+                        type = 'serial_device'
+                    else:
+                        type = 'single_device'
+
+                    dialog = ConfigureDevice(self, {'new': True, 'type': type})
+
+                    if dialog.exec_():
+                        self.add_element(clicked_index, dialog.new_device, index=clicked_index)
+
+                elif action == new_action:
+                    dialog = ConfigureDevice(self, {'new': True, 'type': 'configuration'})
+                    if dialog.exec_():
+                        self.add_element(QtCore.QModelIndex(), dialog.new_device,
+                                         row=self.online_model.get_node(self.online_model.root_index).child_count)
+
+                self.refresh_tables()
+            except Exception as err:
+                logger.error(f'Could not execute command: {err}')
 
     # ----------------------------------------------------------------------
-    def drag_drop(self, mode, dropped_index, dropped_row, dragged_index):
-        dragged_device = self.online_model.get_node(dragged_index).get_data_to_copy()
+    def drag_drop(self, mode, dropped_index, dropped_row, dragged_indexes):
+
+        dragged_devices = [self.online_model.get_node(index).get_data_to_copy() for index in dragged_indexes]
         dropped_device = self.online_model.get_node(dropped_index)
 
-        logger.debug('Drag&drop: dragged {}, dropped to {} at row {}'.format(
-            dragged_device.attrib['name'], dropped_device.info['name'], dropped_row))
+        msg = 'Drag&drop: dragged '
+        for device in dragged_devices:
+            msg += f'{device.attrib["name"]};'
 
-        paste_enabled, clip_device = dropped_device.accept_paste(dragged_device)
+        logger.debug(f"{msg} dropped to {dropped_device.info['name']} at row {dropped_row}")
+
+        paste_enabled, clip_devices = dropped_device.accept_paste(dragged_devices)
         if paste_enabled:
-            logger.debug('Drag&drop: paste_enabled')
-            self.add_element(dropped_index, dragged_device, row=dropped_row)
-            if mode == 'move':
-                self.online_model.remove(dragged_index)
-
             self._last_modified = time.time()
             self.save_history()
+
+            logger.debug('Drag&drop: paste_enabled')
+            for device, index in zip(clip_devices, dragged_indexes):
+                self.add_element(dropped_index, device, row=dropped_row)
+                if mode == 'move':
+                    self.online_model.remove(index)
+
             self.refresh_table()
 
     # ----------------------------------------------------------------------
@@ -528,10 +585,13 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 params['device'] = selected_device
                 params['sub_device'] = None
 
+            self.save_history()
             if ConfigureDevice(self, params).exec_():
                 self._last_modified = time.time()
-                self.save_history()
                 self.refresh_table()
+            else:
+                self._last_edit_step -= 1
+                self.undo_action.setEnabled(self._last_edit_step >= 0)
 
     # ----------------------------------------------------------------------
     def new_online_selected(self, index):
@@ -946,9 +1006,10 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def _init_actions(self):
         """
         """
-        undo = QtWidgets.QAction('Undo', self)
-        undo.setShortcut('Ctrl+Z')
-        undo.triggered.connect(self.undo)
+        self.undo_action = QtWidgets.QAction('Undo', self)
+        self.undo_action.setShortcut('Ctrl+Z')
+        self.undo_action.triggered.connect(self.undo)
+        self.undo_action.setEnabled(False)
 
         open_lib_action = QtWidgets.QAction('Open library', self)
         open_lib_action.setShortcut('Ctrl+O')
@@ -994,7 +1055,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         about_action = QtWidgets.QAction('About', self)
         about_action.triggered.connect(self.show_about)
 
-        self.menuBar().addAction(undo)
+        self.menuBar().addAction(self.undo_action)
         self.menuBar().addAction(open_lib_action)
         self.menuBar().addAction(save_lib_action)
         self.menuBar().addAction(saveas_lib_action)
