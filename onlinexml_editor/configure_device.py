@@ -8,7 +8,9 @@ from PyQt5 import QtWidgets, QtCore
 
 from onlinexml_editor.gui.new_device_ui import Ui_AddDevice
 from onlinexml_editor.property_widget import PropertyWidget
-from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode, ConfigurationNode
+from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode
+
+ALWAYS_PERSONAL = ['active', 'comment', 'name']
 
 
 class ConfigureDevice(QtWidgets.QDialog):
@@ -34,6 +36,8 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._ui.fr_personal_properties.setVisible(False)
 
         self._ui.cmd_apply_template.clicked.connect(self._apply_template)
+        self._ui.cmb_template.currentIndexChanged.connect(self._apply_template)
+
         self._ui.cmd_add_common_property.clicked.connect(lambda: self._add_property('common'))
         self._ui.cmd_add_personal_property.clicked.connect(lambda: self._add_property('personal'))
 
@@ -58,6 +62,15 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.fr_personal_properties.setVisible(True)
 
             else:
+                if type(options['parent']) == SerialDeviceNode:
+                    self._ui.fr_template.setVisible(False)
+                    self._ui.fr_common_properties.setVisible(True)
+                    personal, common = self._parse_serial_device(options['parent'])
+                    for key in personal:
+                        self._add_property('personal', key, '', doRefresh=False)
+                    for key, value in common.items():
+                        self._add_property('common', key, value, editable=False, doRefresh=False)
+
                 self._ui.fr_personal_properties.setVisible(True)
 
             self._ui.le_name.setStyleSheet("QLineEdit {background: rgb(255, 102, 74);}")
@@ -70,10 +83,11 @@ class ConfigureDevice(QtWidgets.QDialog):
 
             if type(self.edited_device) == SerialDeviceNode:
                 self._type = 'serial'
+
+                personal, common = self._parse_serial_device(self.edited_device)
                 self._ui.fr_common_properties.setVisible(True)
-                for key, value in self.edited_device.info.items():
-                    if key not in ['active', 'comment', 'name', 'sardananame']:
-                        self._add_property('common', key, value, False)
+                for key, value in common.items():
+                    self._add_property('common', key, value, doRefresh=False)
 
                 device = self.edited_device.children[self._sub_device]
                 self._ui.fr_personal_properties.setVisible(True)
@@ -81,8 +95,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.le_comment.setText(device.info['comment'])
 
                 for key, value in device.info.items():
-                    if key not in ['active', 'comment', 'name', 'sardananame']:
-                        self._add_property('personal', key, value, False)
+                    if key not in ALWAYS_PERSONAL:
+                        self._add_property('personal', key, value, doRefresh=False)
 
             else:
                 self._type = 'device'
@@ -90,10 +104,29 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.le_name.setText(self.edited_device.info['name'])
                 self._ui.le_comment.setText(self.edited_device.info['comment'])
                 for key, value in self.edited_device.info.items():
-                    if key not in ['active', 'comment', 'name']:
-                        self._add_property('personal', key, value, False)
+                    if key not in ALWAYS_PERSONAL:
+                        self._add_property('personal', key, value, doRefresh=False)
 
-            self._bild_view()
+        self._bild_view()
+
+    # ----------------------------------------------------------------------
+    def _parse_serial_device(self, device):
+
+        common = dict(device.info)
+        for key in ALWAYS_PERSONAL:
+            if key in common:
+                del common[key]
+
+        all_keys = []
+        for child in device.children:
+            all_keys += list(child.info.keys())
+
+        all_keys = list(set(all_keys))
+        for key in ALWAYS_PERSONAL:
+            if key in all_keys:
+                all_keys.remove(key)
+
+        return all_keys, common
 
     # ----------------------------------------------------------------------
     def _colorize_ui(self):
@@ -119,6 +152,15 @@ class ConfigureDevice(QtWidgets.QDialog):
 
         super(ConfigureDevice, self).accept()
 
+    @staticmethod
+    # ----------------------------------------------------------------------
+    def _fill_with_sub_elements(device, container):
+        for widget in container.values():
+            valid, name, value = widget.get_data()
+            if valid:
+                property_element = ET.SubElement(device, name)
+                property_element.text = value
+
     # ----------------------------------------------------------------------
     def _make_new_device(self, name):
         self.new_device = ET.Element(self._type, {'name': name, 'active': 'no', 'comment': self._ui.le_comment.text()})
@@ -126,15 +168,15 @@ class ConfigureDevice(QtWidgets.QDialog):
         if self._type in ['serial_device', 'single_device']:
 
             if self._type == 'serial_device':
-                container = self._common_property_widgets
-            else:
-                container = self._personal_property_widgets
+                self._fill_with_sub_elements(self.new_device, self._common_property_widgets)
+                device = ET.SubElement(self.new_device, 'single_device', attrib={'name': self._ui.le_name.text(),
+                                                                                 'active': 'yes',
+                                                                                 'comment': self._ui.le_comment.text()})
 
-            for widget in container.values():
-                valid, name, value = widget.get_data()
-                if valid:
-                    property_element = ET.SubElement(self.new_device, name)
-                    property_element.text = value
+                self._fill_with_sub_elements(device, self._personal_property_widgets)
+
+            else:
+                self._fill_with_sub_elements(self.new_device, self._personal_property_widgets)
 
     # ----------------------------------------------------------------------
     def _modify_device(self):
@@ -177,7 +219,7 @@ class ConfigureDevice(QtWidgets.QDialog):
                     for key, value in child.attrib.items():
                         if value == '___local___':
                             value = PyTango.Database().get_db_host().split('.')[0] + ":10000"
-                        if self._type  == 'single_device':
+                        if self._type == 'single_device':
                             self._add_property('personal', key, value)
                         else:
                             self._add_property(child.tag, key, value)
@@ -185,18 +227,9 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._bild_view()
 
     # ----------------------------------------------------------------------
-    def _add_property(self, property_type, name='', value='', doRefresh=True):
+    def _add_property(self, property_type, name='', value='', editable=True, doRefresh=True):
 
-        if self._type == 'serial' and property_type == 'personal':
-            if name == '':
-                name = 'sardananame'
-            if name in ['device', 'sardananame']:
-                new_property = PropertyWidget(self, self._last_ind, name, value, True)
-            else:
-                return
-        else:
-            new_property = PropertyWidget(self, self._last_ind, name, value)
-
+        new_property = PropertyWidget(self, self._last_ind, name, value, editable)
         new_property.delete_me.connect(self._delete_property)
         if property_type == 'common':
             self._common_property_widgets[self._last_ind] = new_property

@@ -414,7 +414,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         new_action = QtWidgets.QAction('New configuration')
         convert_action = QtWidgets.QAction()
 
-        clip_devices = []
+        clip_devices = None
 
         selected_indexes = [self.online_proxy.mapToSource(index) for index in
                             self._ui.tw_online.selectionModel().selectedIndexes()][::self.online_proxy.columnCount()]
@@ -429,15 +429,16 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             if len(selected_indexes) == 1:
                 add_support = clicked_device.accept_add()
                 if add_support in [SupportAdd.ONLY_DEVICE, SupportAdd.ANY]:
-                    if add_support ==  SupportAdd.ANY:
+                    if add_support == SupportAdd.ANY:
                         add_menu.addAction(add_group)
                         add_menu.addAction(add_serial)
                     add_menu.addAction(add_device)
                     menu.addMenu(add_menu)
 
-                paste_enabled, clip_devices = clicked_device.accept_paste(self.clipboard)
-                if paste_enabled:
-                    menu.addAction(paste_action)
+                if self.clipboard is not None:
+                    paste_enabled, clip_devices = clicked_device.accept_paste(self.clipboard)
+                    if paste_enabled:
+                        menu.addAction(paste_action)
 
                 convert_enable, caption = clicked_device.can_be_converted()
                 if convert_enable:
@@ -508,7 +509,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                     else:
                         type = 'single_device'
 
-                    dialog = ConfigureDevice(self, {'new': True, 'type': type})
+                    dialog = ConfigureDevice(self, {'new': True, 'type': type, 'parent': clicked_device})
 
                     if dialog.exec_():
                         self.add_element(clicked_index, dialog.new_device, index=clicked_index)

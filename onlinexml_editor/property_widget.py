@@ -3,12 +3,13 @@
 from PyQt5 import QtWidgets, QtCore
 from onlinexml_editor.gui.property_ui import Ui_Property
 
+
 # ----------------------------------------------------------------------
 class PropertyWidget(QtWidgets.QWidget):
     delete_me = QtCore.pyqtSignal(int)
 
     # ----------------------------------------------------------------------
-    def __init__(self, parent, id, name='', value='', is_part_of_serial=False):
+    def __init__(self, parent, id, name='', value='', editable=True):
         super(PropertyWidget, self).__init__(parent)
         self._id = id
 
@@ -18,11 +19,10 @@ class PropertyWidget(QtWidgets.QWidget):
         self._default_color = self._ui.le_name.styleSheet()
 
         self._ui.le_name.setText(name)
-        self._ui.le_name.setEnabled(not is_part_of_serial)
-        if is_part_of_serial and name == 'device':
-            self._ui.cmd_delete.setEnabled(False)
+        self._ui.le_name.setEnabled(editable)
 
         self._ui.le_value.setText(value)
+        self._ui.le_value.setEnabled(editable)
         if value == '':
             self._ui.le_value.setStyleSheet("QLineEdit {background: rgb(255, 102, 74);}")
 
