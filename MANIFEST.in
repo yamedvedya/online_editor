@@ -1,0 +1,2 @@
+include onlinexml_editor/*.xml
+include petra_viewer/onlinexml_editor.sh

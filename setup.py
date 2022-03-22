@@ -32,7 +32,7 @@ DESCRIPTION = 'Utility to edit online.xml files, used in Sardana'
 EMAIL = 'yury.matveev@desy.de'
 AUTHOR = 'Yury Matveyev'
 REQUIRES_PYTHON = '>=3.7'
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
@@ -64,7 +64,7 @@ setup(
     package_dir={'onlinexml_editor': 'onlinexml_editor',
                  },
     package_data={
-        'petra_camera': ['onlinexml_editor/*.py'],
+        'petra_camera': ['onlinexml_editor/*.py', 'petra_viewer/*.xml'],
     },
     cmdclass={
         'install': PostInstallCommand,
@@ -77,6 +77,7 @@ setup(
             'onlinexml_editor = onlinexml_editor:main',
         ],
     },
+    scripts=['petra_viewer/petra_viewer.sh'],
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
