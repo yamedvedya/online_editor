@@ -11,7 +11,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Property(object):
     def setupUi(self, Property):
         Property.setObjectName("Property")
-        Property.resize(469, 43)
+        Property.resize(469, 44)
         self.horizontalLayout = QtWidgets.QHBoxLayout(Property)
         self.horizontalLayout.setContentsMargins(0, -1, 0, -1)
         self.horizontalLayout.setObjectName("horizontalLayout")
@@ -27,6 +27,14 @@ class Ui_Property(object):
         self.le_value = QtWidgets.QLineEdit(Property)
         self.le_value.setObjectName("le_value")
         self.horizontalLayout.addWidget(self.le_value)
+        self.cmb_value = QtWidgets.QComboBox(Property)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.cmb_value.sizePolicy().hasHeightForWidth())
+        self.cmb_value.setSizePolicy(sizePolicy)
+        self.cmb_value.setObjectName("cmb_value")
+        self.horizontalLayout.addWidget(self.cmb_value)
         self.cmd_delete = QtWidgets.QPushButton(Property)
         self.cmd_delete.setObjectName("cmd_delete")
         self.horizontalLayout.addWidget(self.cmd_delete)
@@ -37,7 +45,7 @@ class Ui_Property(object):
     def retranslateUi(self, Property):
         _translate = QtCore.QCoreApplication.translate
         Property.setWindowTitle(_translate("Property", "Form"))
-        self.label_1.setText(_translate("Property", "Property:"))
+        self.label_1.setText(_translate("Property", "Entry:"))
         self.label_2.setText(_translate("Property", "Value:"))
         self.cmd_delete.setText(_translate("Property", "Delete"))
 

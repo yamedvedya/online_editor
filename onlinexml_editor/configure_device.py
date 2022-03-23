@@ -3,14 +3,17 @@
 import os
 import xml.etree.cElementTree as ET
 import PyTango
+import HasyUtils as hu
 
+from distutils.util import strtobool
 from PyQt5 import QtWidgets, QtCore
 
 from onlinexml_editor.gui.new_device_ui import Ui_AddDevice
 from onlinexml_editor.property_widget import PropertyWidget
 from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode
+from onlinexml_editor.lookandfill import EMPTY_INPUT
 
-ALWAYS_PERSONAL = ['active', 'comment', 'name']
+ALWAYS_PERSONAL = ['active', 'comment', 'name', 'tag']
 
 
 class ConfigureDevice(QtWidgets.QDialog):
@@ -31,18 +34,18 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._last_ind = 0
 
         self.new_device = {}
+        self._arbitrary = True
+        self._possible_devices = []
+        self._class = []
 
         self._ui.fr_common_properties.setVisible(False)
         self._ui.fr_personal_properties.setVisible(False)
 
-        self._ui.cmd_apply_template.clicked.connect(self._apply_template)
-        self._ui.cmb_template.currentIndexChanged.connect(self._apply_template)
-
-        self._ui.cmd_add_common_property.clicked.connect(lambda: self._add_property('common'))
-        self._ui.cmd_add_personal_property.clicked.connect(lambda: self._add_property('personal'))
-
         self._default_color = self._ui.le_name.styleSheet()
-        self._ui.le_name.textEdited.connect(self._colorize_ui)
+
+        self.tango_host = 'hasep23oh:10000' #PyTango.Database().get_db_host().split('.')[0] + ":10000"
+        self._ui.le_tango_host.setText(self.tango_host)
+        self._rescan_database()
 
         self.templates = ET.parse(os.path.join(os.path.dirname(__file__), 'default_templates.xml')).getroot()
 
@@ -73,13 +76,15 @@ class ConfigureDevice(QtWidgets.QDialog):
 
                 self._ui.fr_personal_properties.setVisible(True)
 
-            self._ui.le_name.setStyleSheet("QLineEdit {background: rgb(255, 102, 74);}")
+            self._ui.le_name.setStyleSheet(EMPTY_INPUT)
         else:
             self._ui.fr_template.setVisible(False)
 
             self.new_device = False
             self.edited_device = options['device']
             self._sub_device = options['sub_device']
+
+            self._ui.chk_unlock.setChecked(True)
 
             if type(self.edited_device) == SerialDeviceNode:
                 self._type = 'serial'
@@ -93,6 +98,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.fr_personal_properties.setVisible(True)
                 self._ui.le_name.setText(device.info['name'])
                 self._ui.le_comment.setText(device.info['comment'])
+                if 'tag' in device.info:
+                    self._ui.le_tag.setText(device.info['tag'])
 
                 for key, value in device.info.items():
                     if key not in ALWAYS_PERSONAL:
@@ -102,15 +109,28 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._type = 'device'
                 self._ui.fr_personal_properties.setVisible(True)
                 self._ui.le_name.setText(self.edited_device.info['name'])
+                if 'tag' in self.edited_device.info:
+                    self._ui.le_tag.setText(self.edited_device.info['tag'])
                 self._ui.le_comment.setText(self.edited_device.info['comment'])
                 for key, value in self.edited_device.info.items():
                     if key not in ALWAYS_PERSONAL:
                         self._add_property('personal', key, value, doRefresh=False)
 
+        self._ui.chk_unlock.clicked.connect(self._unlock_device)
+        self._ui.cmb_template.currentIndexChanged.connect(self._apply_template)
+
+        self._ui.cmd_rescan_database.clicked.connect(self._rescan_database)
+
+        self._ui.cmd_add_common_property.clicked.connect(lambda: self._add_property('common'))
+        self._ui.cmd_add_personal_property.clicked.connect(lambda: self._add_property('personal'))
+
+        self._ui.le_name.textEdited.connect(self._colorize_ui)
+
         self._bild_view()
 
+    @staticmethod
     # ----------------------------------------------------------------------
-    def _parse_serial_device(self, device):
+    def _parse_serial_device(device):
 
         common = dict(device.info)
         for key in ALWAYS_PERSONAL:
@@ -129,9 +149,17 @@ class ConfigureDevice(QtWidgets.QDialog):
         return all_keys, common
 
     # ----------------------------------------------------------------------
+    def _unlock_device(self, state):
+        self._ui.cmd_add_common_property.setVisible(state)
+        self._ui.cmd_add_personal_property.setVisible(state)
+
+        for widget in list(self._common_property_widgets.values()) + list(self._personal_property_widgets.values()):
+            widget.unlock(state)
+
+    # ----------------------------------------------------------------------
     def _colorize_ui(self):
         if self._ui.le_name.text() == "":
-            self._ui.le_name.setStyleSheet("QLineEdit {background: rgb(255, 102, 74);}")
+            self._ui.le_name.setStyleSheet(EMPTY_INPUT)
         else:
             self._ui.le_name.setStyleSheet(self._default_color)
 
@@ -139,9 +167,9 @@ class ConfigureDevice(QtWidgets.QDialog):
     def accept(self):
         name = self._ui.le_name.text()
         while name == '':
-            name, okPressed = QtWidgets.QInputDialog.getText(self, "Get device name", "Name:",
+            name, ok_pressed = QtWidgets.QInputDialog.getText(self, "Get device name", "Name:",
                                                              QtWidgets.QLineEdit.Normal, "")
-            if not okPressed:
+            if not ok_pressed:
                 self.reject()
                 return
 
@@ -163,7 +191,7 @@ class ConfigureDevice(QtWidgets.QDialog):
 
     # ----------------------------------------------------------------------
     def _make_new_device(self, name):
-        self.new_device = ET.Element(self._type, {'name': name, 'active': 'no', 'comment': self._ui.le_comment.text()})
+        self.new_device = ET.Element(self._type, {'name': name, 'active': 'yes', 'comment': self._ui.le_comment.text()})
 
         if self._type in ['serial_device', 'single_device']:
 
@@ -180,6 +208,15 @@ class ConfigureDevice(QtWidgets.QDialog):
 
     # ----------------------------------------------------------------------
     def _modify_device(self):
+        def fill_info(device_info):
+            device_info['comment'] = self._ui.le_comment.text()
+            device_info['name'] = name
+            if self._ui.le_tag.text() != '':
+                device['tag'] = self._ui.le_tag.text()
+            else:
+                if 'tag' in self.edited_device.info:
+                    del self.edited_device.info['tag']
+
         name = self._ui.le_name.text()
         while name == '':
             name, okPressed = QtWidgets.QInputDialog.getText(self, "Get device name", "Name:",
@@ -187,23 +224,21 @@ class ConfigureDevice(QtWidgets.QDialog):
             if not okPressed:
                 self.reject()
 
-        if isinstance(self.edited_device, SerialDeviceNode) or isinstance(self.edited_device, GroupNode):
-            if isinstance(self.edited_device, SerialDeviceNode):
+        if type(self.edited_device) == SerialDeviceNode or type(self.edited_device) ==  GroupNode:
+            if type(self.edited_device) == SerialDeviceNode:
                 _refill_device(self.edited_device, self._common_property_widgets)
 
             if self._sub_device is None:
-                self.edited_device.info['comment'] = self._ui.le_comment.text()
-                self.edited_device.info['name'] = name
+                fill_info(self.edited_device.info)
+
             else:
                 device = self.edited_device.children[self._sub_device]
                 _refill_device(device, self._personal_property_widgets)
-                device.info['comment'] = self._ui.le_comment.text()
-                device.info['name'] = name
+                fill_info(device)
 
         else:
             _refill_device(self.edited_device, self._personal_property_widgets)
-            self.edited_device.info['comment'] = self._ui.le_comment.text()
-            self.edited_device.info['name'] = name
+            fill_info(self.edited_device)
 
         super(ConfigureDevice, self).accept()
 
@@ -212,19 +247,37 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._common_property_widgets = {}
         self._personal_property_widgets = {}
 
+        self._ui.chk_unlock.setChecked(False)
+
         template = self._ui.cmb_template.currentText()
         for device in self.templates.iter('device'):
             if device.get('name') == template:
+                self._arbitrary = False if device.get('arbitrary') is None else strtobool(device.get('arbitrary'))
+                self._class = [] if device.get('class') is None else device.get('class').split(';')
+                self._rescan_database()
+
                 for child in list(device):
                     for key, value in child.attrib.items():
-                        if value == '___local___':
-                            value = PyTango.Database().get_db_host().split('.')[0] + ":10000"
-                        if self._type == 'single_device':
-                            self._add_property('personal', key, value)
-                        else:
-                            self._add_property(child.tag, key, value)
+                        if key not in ALWAYS_PERSONAL:
+                            self._add_property(child.tag if self._type != 'single_device' else 'personal',
+                                               key, value, self._arbitrary, False)
+
+        self._ui.cmd_add_common_property.setVisible(template == 'ARBITRARY DEVICE')
+        self._ui.cmd_add_personal_property.setVisible(template == 'ARBITRARY DEVICE')
 
         self._bild_view()
+
+    # ----------------------------------------------------------------------
+    def _rescan_database(self):
+        self.tango_host = self._ui.le_tango_host.text()
+
+        self._possible_devices = []
+        for c_name in self._class:
+            self._possible_devices += hu.getDeviceNamesByClass(c_name, self.tango_host)
+
+    # ----------------------------------------------------------------------
+    def get_devices_list(self):
+        return self._possible_devices
 
     # ----------------------------------------------------------------------
     def _add_property(self, property_type, name='', value='', editable=True, doRefresh=True):

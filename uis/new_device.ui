@@ -16,7 +16,30 @@
   <property name="locale">
    <locale language="English" country="UnitedStates"/>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,0,0,0">
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,0,0,0,0,0,0">
+   <item>
+    <widget class="QFrame" name="fr_tango_host">
+     <layout class="QHBoxLayout" name="horizontalLayout_6">
+      <item>
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Select Tango host:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="le_tango_host"/>
+      </item>
+      <item>
+       <widget class="QPushButton" name="cmd_rescan_database">
+        <property name="text">
+         <string>Rescan database</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
    <item>
     <widget class="QFrame" name="fr_template">
      <layout class="QHBoxLayout" name="horizontalLayout">
@@ -28,12 +51,19 @@
        </widget>
       </item>
       <item>
-       <widget class="QComboBox" name="cmb_template"/>
+       <widget class="QComboBox" name="cmb_template">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="cmd_apply_template">
+       <widget class="QCheckBox" name="chk_unlock">
         <property name="text">
-         <string>Apply template</string>
+         <string>Unlock fields</string>
         </property>
        </widget>
       </item>
@@ -51,6 +81,20 @@
      </item>
      <item>
       <widget class="QLineEdit" name="le_name"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_7">
+     <item>
+      <widget class="QLabel" name="label_7">
+       <property name="text">
+        <string>Tag:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="le_tag"/>
      </item>
     </layout>
    </item>
@@ -88,7 +132,7 @@
         <item>
          <widget class="QLabel" name="label_3">
           <property name="text">
-           <string>Individual properties</string>
+           <string>Individual entries</string>
           </property>
          </widget>
         </item>
@@ -108,7 +152,7 @@
         <item>
          <widget class="QPushButton" name="cmd_add_personal_property">
           <property name="text">
-           <string>Add property</string>
+           <string>Add entry</string>
           </property>
          </widget>
         </item>
@@ -147,7 +191,7 @@
         <item>
          <widget class="QLabel" name="label_5">
           <property name="text">
-           <string>Common properties</string>
+           <string>Common entries</string>
           </property>
          </widget>
         </item>
@@ -167,7 +211,7 @@
         <item>
          <widget class="QPushButton" name="cmd_add_common_property">
           <property name="text">
-           <string>Add property</string>
+           <string>Add entry</string>
           </property>
          </widget>
         </item>
@@ -198,6 +242,13 @@
       </size>
      </property>
     </spacer>
+   </item>
+   <item>
+    <widget class="QLabel" name="label_8">
+     <property name="text">
+      <string>* fields, marked by red frame, are obligatory</string>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QDialogButtonBox" name="but_ok_cancel">

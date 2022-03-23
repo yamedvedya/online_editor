@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>469</width>
-    <height>43</height>
+    <height>44</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -23,7 +23,7 @@
    <item>
     <widget class="QLabel" name="label_1">
      <property name="text">
-      <string>Property:</string>
+      <string>Entry:</string>
      </property>
     </widget>
    </item>
@@ -39,6 +39,16 @@
    </item>
    <item>
     <widget class="QLineEdit" name="le_value"/>
+   </item>
+   <item>
+    <widget class="QComboBox" name="cmb_value">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QPushButton" name="cmd_delete">

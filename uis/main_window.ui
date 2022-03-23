@@ -90,7 +90,7 @@
          <item>
           <widget class="QPushButton" name="but_edit_properties">
            <property name="text">
-            <string>Add/remove properties</string>
+            <string>Edit device</string>
            </property>
           </widget>
          </item>
