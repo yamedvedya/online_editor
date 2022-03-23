@@ -23,8 +23,6 @@ class PropertyWidget(QtWidgets.QWidget):
 
         self._default_color = self._ui.le_name.styleSheet()
 
-        self._editable = editable
-
         self._name = name
         self._ui.le_name.setText(name)
 
@@ -63,8 +61,7 @@ class PropertyWidget(QtWidgets.QWidget):
         self._ui.le_value.setVisible(not self._selectable_device)
 
     # ----------------------------------------------------------------------
-    def unlock(self, state):
-        new_state = True if state else self._editable
+    def unlock(self, new_state):
         self._ui.le_name.setEnabled(new_state)
 
         self._ui.le_value.setEnabled(new_state if self._name not in ALWAYS_EDITABLE else True)

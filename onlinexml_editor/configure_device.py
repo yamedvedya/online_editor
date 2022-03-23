@@ -82,6 +82,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                                     host = self.tango_host.split(':')
                                     self._class = [PyTango.Database(host[0], host[1]).get_device_info(value).class_name]
 
+                    self._unlock_device(False)
+
                 self._ui.fr_personal_properties.setVisible(True)
 
             self._ui.le_name.setStyleSheet(EMPTY_INPUT)
