@@ -43,10 +43,6 @@ class ConfigureDevice(QtWidgets.QDialog):
 
         self._default_color = self._ui.le_name.styleSheet()
 
-        self.tango_host = 'hasep23oh:10000' #PyTango.Database().get_db_host().split('.')[0] + ":10000"
-        self._ui.le_tango_host.setText(self.tango_host)
-        self._rescan_database()
-
         self.templates = ET.parse(os.path.join(os.path.dirname(__file__), 'default_templates.xml')).getroot()
 
         for device in self.templates.iter('device'):
@@ -54,6 +50,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.cmb_template.addItem(device.get('name'))
 
         if options['new']:
+            self.tango_host = PyTango.Database().get_db_host().split('.')[0] + ":10000"
+
             self._type = options['type']
             self.new_device = True
 
@@ -73,6 +71,14 @@ class ConfigureDevice(QtWidgets.QDialog):
                         self._add_property('personal', key, '', doRefresh=False)
                     for key, value in common.items():
                         self._add_property('common', key, value, editable=False, doRefresh=False)
+                        if key == 'hostname':
+                            self.tango_host = value
+                    if len(options['parent'].children):
+                        for key, value in options['parent'].child(0).info.items():
+                            if key == 'device':
+                                host = self.tango_host.split(':')
+                                self._class = [PyTango.Database(host[0], host[1]).get_device_info(value).class_name]
+                                # self._class = [hu.getClassNameByDevice(value, self.tango_host)]
 
                 self._ui.fr_personal_properties.setVisible(True)
 
@@ -86,6 +92,8 @@ class ConfigureDevice(QtWidgets.QDialog):
 
             self._ui.chk_unlock.setChecked(True)
 
+            self.tango_host = PyTango.Database().get_db_host().split('.')[0] + ":10000"
+
             if type(self.edited_device) == SerialDeviceNode:
                 self._type = 'serial'
 
@@ -93,6 +101,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.fr_common_properties.setVisible(True)
                 for key, value in common.items():
                     self._add_property('common', key, value, doRefresh=False)
+                    if key == 'hostname':
+                        self.tango_host = value
 
                 device = self.edited_device.children[self._sub_device]
                 self._ui.fr_personal_properties.setVisible(True)
@@ -104,6 +114,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 for key, value in device.info.items():
                     if key not in ALWAYS_PERSONAL:
                         self._add_property('personal', key, value, doRefresh=False)
+                    if key == 'hostname':
+                        self.tango_host = value
 
             else:
                 self._type = 'device'
@@ -115,6 +127,11 @@ class ConfigureDevice(QtWidgets.QDialog):
                 for key, value in self.edited_device.info.items():
                     if key not in ALWAYS_PERSONAL:
                         self._add_property('personal', key, value, doRefresh=False)
+                    if key == 'hostname':
+                        self.tango_host = value
+
+        self._ui.le_tango_host.setText(self.tango_host)
+        self._rescan_database()
 
         self._ui.chk_unlock.clicked.connect(self._unlock_device)
         self._ui.cmb_template.currentIndexChanged.connect(self._apply_template)
@@ -274,6 +291,9 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._possible_devices = []
         for c_name in self._class:
             self._possible_devices += hu.getDeviceNamesByClass(c_name, self.tango_host)
+
+        for widget in list(self._common_property_widgets.values()) + list(self._personal_property_widgets.values()):
+            widget.update_gui()
 
     # ----------------------------------------------------------------------
     def get_devices_list(self):
