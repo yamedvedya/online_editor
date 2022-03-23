@@ -91,7 +91,7 @@ class Ui_OnLineEditor(object):
         _translate = QtCore.QCoreApplication.translate
         OnLineEditor.setWindowTitle(_translate("OnLineEditor", "Online.xml Editor"))
         self.label.setText(_translate("OnLineEditor", "Find:"))
-        self.but_edit_properties.setText(_translate("OnLineEditor", "Add/remove properties"))
+        self.but_edit_properties.setText(_translate("OnLineEditor", "Edit device"))
         self.lb_applied.setText(_translate("OnLineEditor", "NOT APPLIED"))
         self.but_check.setText(_translate("OnLineEditor", "Check configuration for errors"))
         self.but_apply.setText(_translate("OnLineEditor", "Apply configuration"))
