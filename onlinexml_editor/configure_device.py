@@ -76,7 +76,11 @@ class ConfigureDevice(QtWidgets.QDialog):
                     if len(options['parent'].children):
                         for key, value in options['parent'].child(0).info.items():
                             if key == 'device':
-                                self._class = [hu.getClassNameByDevice(value, self.tango_host)]
+                                try:
+                                    self._class = [hu.getClassNameByDevice(value, self.tango_host)]
+                                except:
+                                    host = self.tango_host.split(':')
+                                    self._class = [PyTango.Database(host[0], host[1]).get_device_info(value).class_name]
 
                 self._ui.fr_personal_properties.setVisible(True)
 
