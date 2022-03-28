@@ -36,7 +36,7 @@ class Node(object):
             else:
                 self.info = deepcopy(info.attrib)
                 for child in info:
-                    if child.tag not in ['group', 'serial_device', 'single_device']:
+                    if child.tag not in ['group', 'serial_device', 'single_device', 'tags']:
                         self.info[child.tag] = child.text
         else:
             self.info = {}
@@ -280,7 +280,7 @@ class Node(object):
         def _check_serial_device(info, device):
             equal = True
             for child in device:
-                if child.tag not in ['name', 'device', 'sardananame']:
+                if child.tag not in ['name', 'device', 'sardananame', 'tags']:
                     if child.tag in info:
                         equal *= child.text == info[child.tag]
                     else:

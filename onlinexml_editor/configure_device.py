@@ -13,7 +13,7 @@ from onlinexml_editor.property_widget import PropertyWidget
 from onlinexml_editor.devices_class import SerialDeviceNode, GroupNode
 from onlinexml_editor.lookandfill import EMPTY_INPUT
 
-ALWAYS_PERSONAL = ['active', 'comment', 'name', 'tag']
+ALWAYS_PERSONAL = ['active', 'comment', 'name', 'tags']
 
 
 class ConfigureDevice(QtWidgets.QDialog):
@@ -112,8 +112,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._ui.fr_personal_properties.setVisible(True)
                 self._ui.le_name.setText(device.info['name'])
                 self._ui.le_comment.setText(device.info['comment'])
-                if 'tag' in device.info:
-                    self._ui.le_tag.setText(device.info['tag'])
+                if 'tags' in device.info:
+                    self._ui.le_tags.setText(device.info['tags'])
 
                 for key, value in device.info.items():
                     if key not in ALWAYS_PERSONAL:
@@ -125,8 +125,8 @@ class ConfigureDevice(QtWidgets.QDialog):
                 self._type = 'device'
                 self._ui.fr_personal_properties.setVisible(True)
                 self._ui.le_name.setText(self.edited_device.info['name'])
-                if 'tag' in self.edited_device.info:
-                    self._ui.le_tag.setText(self.edited_device.info['tag'])
+                if 'tags' in self.edited_device.info:
+                    self._ui.le_tags.setText(self.edited_device.info['tags'])
                 self._ui.le_comment.setText(self.edited_device.info['comment'])
                 for key, value in self.edited_device.info.items():
                     if key not in ALWAYS_PERSONAL:
@@ -232,11 +232,11 @@ class ConfigureDevice(QtWidgets.QDialog):
         def fill_info(device_info):
             device_info['comment'] = self._ui.le_comment.text()
             device_info['name'] = name
-            if self._ui.le_tag.text() != '':
-                device['tag'] = self._ui.le_tag.text()
+            if self._ui.le_tags.text() != '':
+                device['tags'] = self._ui.le_tags.text()
             else:
-                if 'tag' in self.edited_device.info:
-                    del self.edited_device.info['tag']
+                if 'tags' in self.edited_device.info:
+                    del self.edited_device.info['tags']
 
         name = self._ui.le_name.text()
         while name == '':
