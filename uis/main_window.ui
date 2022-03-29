@@ -163,6 +163,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="but_check">
+           <property name="toolTip">
+            <string>Checks for error without generation</string>
+           </property>
            <property name="text">
             <string>Check configuration for errors</string>
            </property>
@@ -170,8 +173,11 @@
          </item>
          <item>
           <widget class="QPushButton" name="but_apply">
+           <property name="toolTip">
+            <string>Generates onlene.xml from the selected configuration</string>
+           </property>
            <property name="text">
-            <string>Apply configuration</string>
+            <string>Generate ONLINE.XML</string>
            </property>
           </widget>
          </item>

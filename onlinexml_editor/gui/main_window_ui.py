@@ -104,6 +104,8 @@ class Ui_OnLineEditor(object):
         self.but_edit_properties.setText(_translate("OnLineEditor", "Edit device"))
         self.lb_saved.setText(_translate("OnLineEditor", "NOT SAVED"))
         self.lb_applied.setText(_translate("OnLineEditor", "NOT APPLIED"))
+        self.but_check.setToolTip(_translate("OnLineEditor", "Checks for error without generation"))
         self.but_check.setText(_translate("OnLineEditor", "Check configuration for errors"))
-        self.but_apply.setText(_translate("OnLineEditor", "Apply configuration"))
+        self.but_apply.setToolTip(_translate("OnLineEditor", "Generates onlene.xml from the selected configuration"))
+        self.but_apply.setText(_translate("OnLineEditor", "Generate ONLINE.XML"))
 
