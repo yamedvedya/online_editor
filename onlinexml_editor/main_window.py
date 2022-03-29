@@ -16,10 +16,11 @@ import PyTango
 import xml.etree.cElementTree as ET
 
 from pathlib import Path
-
+from datetime import datetime
 from PyQt5 import QtWidgets, QtCore
 
 from onlinexml_editor.aboutdialog import AboutDialog
+from onlinexml_editor.config_error import ConfigError
 from onlinexml_editor.online_table_model import OnlineModel, DeviceModel, ProxyDeviceModel
 from onlinexml_editor.devices_class import DeviceNode, GroupNode, SerialDeviceNode, ConfigurationNode, \
     check_column, SupportAdd
@@ -28,7 +29,6 @@ from onlinexml_editor.columns_selector import ColumnSelector
 from onlinexml_editor.settings import AppSettings
 
 from onlinexml_editor.gui.main_window_ui import Ui_OnLineEditor
-
 from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
 logger = logging.getLogger(APP_NAME)
@@ -115,25 +115,24 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     # ----------------------------------------------------------------------
     def get_default_lib(self, options):
 
-        home = os.path.join(str(Path.home()), '.onlinexml_editor')
         file_name = str(options.file)
         if not file_name.endswith('.xml'):
             file_name += '.xml'
 
-        if file_name != 'default.xml' and not os.path.exists(os.path.join(home, file_name)):
+        if file_name != 'default.xml' and not os.path.exists(os.path.join(self._library_path, file_name)):
             file = QtWidgets.QFileDialog.getOpenFileName(self, 'Cannot find library file, please locate it',
-                                                         str(Path.home()), 'XML settings (*.xml)')
+                                                         self._library_path, 'XML settings (*.xml)')
             if file[0]:
                 if self._read_lib(file[0]):
                     return
         else:
-            if self._read_lib(os.path.join(home, file_name)):
+            if self._read_lib(os.path.join(self._library_path, file_name)):
                 return
 
-        if not os.path.exists(home):
-            os.mkdir(home)
+        if not os.path.exists(self._library_path):
+            os.mkdir(self._library_path)
 
-        if not os.path.exists(os.path.join(home, file_name)):
+        if not os.path.exists(os.path.join(self._library_path, file_name)):
             QtWidgets.QMessageBox.warning(self, 'Open error',
                                           'Cannot open default library, current online.xml will be imported!')
             if not self.import_lib():
@@ -255,11 +254,15 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def save_library(self, file_name=None):
         self.refresh_tables()
 
-        if file_name is None:
-            file_name = os.path.join(os.path.join(str(Path.home()), '.onlinexml_editor'), 'default.xml')
+        if file_name is not None:
+            logger.info('Saving in {}'.format(file_name))
+            self._drop_library(file_name)
 
+        file_name = os.path.join(self._library_path, 'default.xml')
         logger.info('Saving in {}'.format(file_name))
         self._drop_library(file_name)
+
+        QtCore.QSettings(APP_NAME).setValue("last_saved", time.time())
 
     # ----------------------------------------------------------------------
     def _drop_library(self, new_file):
@@ -453,7 +456,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             clicked_device = None
             menu.addAction(new_action)
             if self.clipboard is not None and len(self.clipboard) == 1 and self.clipboard[0].tag == 'configuration':
-                clip_devices = self.clipboard
+                clip_devices = self.clipboard[0]
                 menu.addAction(copy_config)
 
         action = menu.exec_(self.mapToGlobal(pos))
@@ -494,7 +497,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                         self.add_element(clicked_index, device, index=clicked_index)
 
                 elif action == copy_config:
-                    self.add_config(self.clipboard)
+                    self.add_config(clip_devices)
 
                 elif action == convert_action:
                     new_device = clicked_device.get_converted()
@@ -630,22 +633,14 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self.refresh_tables()
 
     # ----------------------------------------------------------------------
-    def config_error(self, text, informative_text='', detailed_text='', applying=False):
+    def config_error(self, text='', detailed_text='', applying=False):
 
-        self.msg = QtWidgets.QMessageBox()
+        self.msg = ConfigError(text, detailed_text, applying)
         self.msg.setModal(False)
-        self.msg.setIcon(QtWidgets.QMessageBox.Critical)
-        self.msg.setText(text)
-        self.msg.setInformativeText(informative_text)
-        if detailed_text != '':
-            self.msg.setDetailedText(detailed_text)
-        self.msg.setWindowTitle("Error")
+
         if applying:
-            self.msg.setStandardButtons(QtWidgets.QMessageBox.Ignore|QtWidgets.QMessageBox.Abort)
-            button = self.msg.exec_()
-            return button == QtWidgets.QMessageBox.Ignore
+            return self.msg.exec_()
         else:
-            self.msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
             self.msg.show()
 
     # ----------------------------------------------------------------------
@@ -677,7 +672,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 break
 
         if config_to_export is None:
-            self.config_error("No configuration is selected", 'Activate one configuration')
+            self.config_error(text="No configuration is selected")
             return
 
         logger.info('Checking configuration {}'.format(config_to_export.info['name']))
@@ -809,9 +804,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 if device not in used_names:
                     has_error = True
                     logger.warning(
-                        'Checking configuration: {} listed in mg {} is  ot included in configuration'.format(
-                            device.get_my_path(), name))
-                    rest_errors[name] = ['MG {}: {} not in configuration'.format(name, device.get_my_path())]
+                        f'Checking configuration: {device} listed in mg {name} is  ot included in configuration')
+                    rest_errors[name] = [f'MG {name}: {device} not in configuration']
 
             if has_error:
                 cofig_has_error = True
@@ -840,9 +834,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 details += 'REST ERRORS:\n'
                 details += _parse_error(rest_errors)
             if only_check:
-                self.config_error('Config has errors!', informative_text=details)
+                self.config_error(text='Config has errors!', detailed_text=details)
             else:
-                if self.config_error('Config has errors!', informative_text=details, applying=True):
+                if self.config_error(text='Config has errors!', detailed_text=details, applying=True):
                     return data
                 else:
                     return None
@@ -854,10 +848,29 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 return data
 
     # ----------------------------------------------------------------------
+    def archive_onlinexml(self):
+        if not os.path.exists(self._archive_path):
+            os.mkdir(self._archive_path)
+
+        base_name = os.path.join(self._archive_path, datetime.today().strftime('%Y_%m_%d_%H_%M_%S'))
+        new_name = base_name + '.xml'
+        counter = 0
+        while os.path.exists(new_name):
+            counter += 1
+            new_name = base_name + f'{counter}' + '.xml'
+
+        shutil.move(self._online_path, new_name)
+        logger.info('Archive online.xml to {}'.format(new_name))
+
+    # ----------------------------------------------------------------------
     def apply_configuration(self):
         self.save_library()
         data = self.check_configuration(False)
+
         if data is not None:
+
+            if self._auto_archive:
+                self.archive_onlinexml()
 
             logger.info('Applying configuration: saving to {}'.format(self._online_path))
 
@@ -877,6 +890,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
             self._last_modified = time.time()
             QtCore.QSettings(APP_NAME).setValue("last_modified", self._last_modified)
+
+            QtCore.QSettings(APP_NAME).setValue("last_saved", time.time())
 
     # ----------------------------------------------------------------------
     def modify_filters(self, text):
@@ -923,7 +938,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         logger.info('Close: removing tmp files from {}'.format(self._temp_dir))
 
         self._save_ui_settings()
-        self.save_library()
+        if self._auto_save:
+            self.save_library()
 
         shutil.rmtree(self._temp_dir, ignore_errors=True)
 
@@ -977,6 +993,34 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             self._online_path = str(path)
             logger.info('Load settings: online.xml path {}'.format(self._online_path))
 
+        path = settings.value('ArchivePath')
+        if path is None:
+            all_ok *= False
+        else:
+            self._archive_path = str(path)
+            logger.info('Load settings: archive path {}'.format(self._archive_path))
+
+        path = settings.value('LibraryPath')
+        if path is None:
+            all_ok *= False
+        else:
+            self._library_path = str(path)
+            logger.info('Load settings: library path {}'.format(self._library_path))
+
+        autosave = settings.value('AutoSave')
+        if path is None:
+            all_ok *= False
+        else:
+            self._auto_save = bool(autosave)
+            logger.info(f'Load settings: autosave {"True" if self._auto_save else "False"}')
+
+        autoarchive = settings.value('AutoArchive')
+        if path is None:
+            all_ok *= False
+        else:
+            self._auto_archive = bool(autoarchive)
+            logger.info(f'Load settings: autoarchive {"True" if self._auto_archive else "False"}')
+
         password = settings.value('SuperuserPassword')
         if password is None:
             self._super_user_pass = DEFAULT_SUPERUSER_PASS
@@ -993,6 +1037,12 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             dialog = AppSettings(self)
             if dialog.exec_():
                 self._online_path = dialog.online_path
+                self._archive_path = dialog.archive_path
+                self._library_path = dialog.library_path
+
+                self._auto_save = dialog.auto_save
+                self._auto_archive = dialog.auto_archive
+
                 return True
             return False
 
@@ -1115,6 +1165,11 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         except:
            _last_modified = 0
 
+        try:
+           _last_saved = float(QtCore.QSettings(APP_NAME).value("last_saved"))
+        except:
+           _last_saved = 0
+
         if os.path.getmtime(self._online_path) == _last_applied and self._last_modified == _last_modified:
             lb_status_style = "QLabel {color: rgb(50, 255, 50);}"
             lb_status_text = 'APPLIED'
@@ -1124,6 +1179,16 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         self._ui.lb_applied.setStyleSheet(lb_status_style)
         self._ui.lb_applied.setText(lb_status_text)
+
+        if self._last_modified <= _last_saved:
+            lb_status_style = "QLabel {color: rgb(50, 255, 50);}"
+            lb_status_text = 'SAVED'
+        else:
+            lb_status_style = "QLabel {color: rgb(255, 0, 0);}"
+            lb_status_text = 'NOT SAVED'
+
+        self._ui.lb_saved.setStyleSheet(lb_status_style)
+        self._ui.lb_saved.setText(lb_status_text)
 
         process = psutil.Process(os.getpid())
         mem = float(process.memory_info().rss) / (1024. * 1024.)

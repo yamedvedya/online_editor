@@ -9,6 +9,8 @@ from onlinexml_editor.password import PasswordSetup
 from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
 SYSTEM_DEFAULT_ONLINE_XML = '/usr/local/experiment/online_dir/online.xml'
+SYSTEM_DEFAULT_ARCHIVE = '/usr/local/experiment/online_dir/archive/'
+SYSTEM_DEFAULT_LIBRARY = os.path.expanduser('~/.onlinexml_editor/')
 
 # ----------------------------------------------------------------------
 class AppSettings(QtWidgets.QDialog):
@@ -22,9 +24,14 @@ class AppSettings(QtWidgets.QDialog):
         self._ui = Ui_AppSettings()
         self._ui.setupUi(self)
 
-        self.online_path = ''
-
         settings = QtCore.QSettings(APP_NAME)
+
+        self.archive_path = ''
+        self.online_path = ''
+        self.library_path = ''
+
+        self.auto_save = False
+        self.auto_archive = True
 
         try:
             self.restoreGeometry(settings.value("Settings/geometry"))
@@ -38,6 +45,36 @@ class AppSettings(QtWidgets.QDialog):
             if os.path.exists(SYSTEM_DEFAULT_ONLINE_XML):
                 self._ui.le_online_path.setText(SYSTEM_DEFAULT_ONLINE_XML)
 
+        path = settings.value('ArchivePath')
+        if path is not None:
+            self._ui.le_archive_path.setText(str(path))
+        else:
+            if os.path.exists(SYSTEM_DEFAULT_ARCHIVE):
+                self._ui.le_archive_path.setText(SYSTEM_DEFAULT_ARCHIVE)
+            elif os.path.exists(SYSTEM_DEFAULT_ONLINE_XML):
+                path = os.path.join(os.path.dirname(SYSTEM_DEFAULT_ONLINE_XML), 'archive')
+                if os.path.exists(path):
+                    self._ui.le_archive_path.setText(path)
+
+        path = settings.value('LibraryPath')
+        if path is not None:
+            self._ui.le_library_path.setText(str(path))
+        else:
+            if os.path.exists(SYSTEM_DEFAULT_LIBRARY):
+                self._ui.le_library_path.setText(SYSTEM_DEFAULT_LIBRARY)
+
+        autosave = settings.value('AutoSave')
+        if autosave is not None:
+            self._ui.chk_auto_save.setChecked(bool(autosave))
+        else:
+            self._ui.chk_auto_save.setChecked(True)
+
+        autoarchive = settings.value('AutoArchive')
+        if autoarchive is not None:
+            self._ui.chk_auto_archive.setChecked(bool(autoarchive))
+        else:
+            self._ui.chk_auto_archive.setChecked(True)
+
         try:
             if bool(settings.value("DefaultSuperuser")):
                 self._ui.rb_superuser.setChecked(True)
@@ -47,15 +84,23 @@ class AppSettings(QtWidgets.QDialog):
             pass
 
         self._ui.bg_user_role.buttonClicked.connect(self._change_role)
-        self._ui.cmd_online_path.clicked.connect(self._change_online_path)
+
+        for ui in ['archive_path', 'online_path', 'library_path']:
+            getattr(self._ui, f'cmd_{ui}').clicked.connect(lambda state, source=ui: self._change_path(source))
+
         self._ui.cmd_superuser_pass.clicked.connect(self._set_pass)
 
     # ----------------------------------------------------------------------
     def _block_signals(self, flag):
         self._ui.rb_superuser.blockSignals(flag)
         self._ui.rb_regular_user.blockSignals(flag)
-        self._ui.le_lib_path.blockSignals(flag)
-        self._ui.le_online_path.blockSignals(flag)
+
+        for ui in ['archive_path', 'online_path', 'library_path']:
+            getattr(self._ui, f'le_{ui}').blockSignals(flag)
+            getattr(self._ui, f'cmd_{ui}').blockSignals(flag)
+
+        self._ui.chk_auto_save.blockSignals(flag)
+        self._ui.chk_auto_archive.blockSignals(flag)
 
     # ----------------------------------------------------------------------
     def _set_pass(self):
@@ -82,21 +127,31 @@ class AppSettings(QtWidgets.QDialog):
         self._block_signals(False)
 
     # ----------------------------------------------------------------------
-    def _change_online_path(self):
-        file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Online.xml file', os.getcwd(), 'online.xml (online.xml)')
-        if file:
-            self._ui.le_online_path.setText(file)
+    def _change_path(self, source):
+        if source == 'online_path':
+            default_path = self._ui.le_online_path.text()
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Online.xml file', default_path if default_path != ''
+                                                                                     else os.getcwd(),
+                                                            'online.xml (online.xml)')
+        else:
+            default_path = getattr(self._ui, f'le_{source}').text()
+            path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Archive folder' if source == 'archive_path'
+                                                                    else 'Library folder',
+                                                              default_path if default_path != '' else os.getcwd())
+
+        if path:
+            getattr(self._ui, f'le_{source}').setText(path)
 
     # ----------------------------------------------------------------------
     def accept(self):
         all_ok = True
         error_text = ''
 
-        self.online_path = str(self._ui.le_online_path.text())
-
-        if not os.path.exists(self.online_path):
-            all_ok *= False
-            error_text += 'The online.xml path does not exist\n'
+        for ui in ['archive_path', 'online_path', 'library_path']:
+            setattr(self, ui, str(getattr(self._ui, f'le_{ui}').text()))
+            if not os.path.exists(getattr(self, ui)):
+                all_ok *= False
+                error_text += f'The {ui} path does not exist\n'
 
         if not all_ok:
             msg = QtWidgets.QMessageBox()
@@ -108,7 +163,15 @@ class AppSettings(QtWidgets.QDialog):
             return
 
         settings = QtCore.QSettings(APP_NAME)
-        settings.setValue('OnlinePath', self.online_path)
+        settings.setValue('OnlinePath', str(self.online_path))
+        settings.setValue('ArchivePath', str(self.archive_path))
+        settings.setValue('LibraryPath', str(self.library_path))
+
+        self.auto_save = self._ui.chk_auto_save.isChecked()
+        settings.setValue('AutoSave', int(self.auto_save))
+
+        self.auto_archive = self._ui.chk_auto_archive.isChecked()
+        settings.setValue('AutoArchive', int(self.auto_archive))
 
         if self._ui.rb_superuser.isChecked():
             settings.setValue('DefaultSuperuser', True)

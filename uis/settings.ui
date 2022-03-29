@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>650</width>
-    <height>276</height>
+    <width>660</width>
+    <height>403</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -24,18 +24,37 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QGroupBox" name="groupBox">
+    <widget class="QGroupBox" name="groupBox_3">
      <property name="title">
-      <string>Path</string>
+      <string>Save and archiv behaviour</string>
      </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="0" column="2">
-       <widget class="QPushButton" name="cmd_online_path">
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="0" column="1">
+       <widget class="QCheckBox" name="chk_auto_archive">
         <property name="text">
-         <string>Set folder</string>
+         <string>Automatic archive every apply</string>
         </property>
        </widget>
       </item>
+      <item row="0" column="2">
+       <widget class="QCheckBox" name="chk_auto_save">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Automatic save on exit</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>Paths</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
       <item row="0" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
@@ -45,6 +64,47 @@
       </item>
       <item row="0" column="1">
        <widget class="QLineEdit" name="le_online_path"/>
+      </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="cmd_online_path">
+        <property name="text">
+         <string>Set folder</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_3">
+        <property name="text">
+         <string>Online.xml archive</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>Library path</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="le_archive_path"/>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="le_library_path"/>
+      </item>
+      <item row="1" column="2">
+       <widget class="QPushButton" name="cmd_archive_path">
+        <property name="text">
+         <string>Set folder</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <widget class="QPushButton" name="cmd_library_path">
+        <property name="text">
+         <string>Set folder</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

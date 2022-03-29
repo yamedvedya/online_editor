@@ -233,10 +233,10 @@ class ConfigureDevice(QtWidgets.QDialog):
             device_info['comment'] = self._ui.le_comment.text()
             device_info['name'] = name
             if self._ui.le_tags.text() != '':
-                device['tags'] = self._ui.le_tags.text()
+                device_info['tags'] = self._ui.le_tags.text()
             else:
-                if 'tags' in self.edited_device.info:
-                    del self.edited_device.info['tags']
+                if 'tags' in device_info:
+                    del device_info['tags']
 
         name = self._ui.le_name.text()
         while name == '':
@@ -245,7 +245,7 @@ class ConfigureDevice(QtWidgets.QDialog):
             if not okPressed:
                 self.reject()
 
-        if type(self.edited_device) == SerialDeviceNode or type(self.edited_device) ==  GroupNode:
+        if type(self.edited_device) == SerialDeviceNode or type(self.edited_device) == GroupNode:
             if type(self.edited_device) == SerialDeviceNode:
                 _refill_device(self.edited_device, self._common_property_widgets)
 
@@ -255,11 +255,11 @@ class ConfigureDevice(QtWidgets.QDialog):
             else:
                 device = self.edited_device.children[self._sub_device]
                 _refill_device(device, self._personal_property_widgets)
-                fill_info(device)
+                fill_info(device.info)
 
         else:
             _refill_device(self.edited_device, self._personal_property_widgets)
-            fill_info(self.edited_device)
+            fill_info(self.edited_device.info)
 
         super(ConfigureDevice, self).accept()
 

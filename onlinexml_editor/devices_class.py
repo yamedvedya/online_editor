@@ -36,7 +36,7 @@ class Node(object):
             else:
                 self.info = deepcopy(info.attrib)
                 for child in info:
-                    if child.tag not in ['group', 'serial_device', 'single_device', 'tags']:
+                    if child.tag not in ['group', 'serial_device', 'single_device']:
                         self.info[child.tag] = child.text
         else:
             self.info = {}
