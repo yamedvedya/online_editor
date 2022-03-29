@@ -32,7 +32,7 @@ DESCRIPTION = 'Utility to edit online.xml files, used in Sardana'
 EMAIL = 'yury.matveev@desy.de'
 AUTHOR = 'Yury Matveyev'
 REQUIRES_PYTHON = '>=3.7'
-VERSION = '1.7.0'
+VERSION = '1.7.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
