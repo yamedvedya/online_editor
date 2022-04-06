@@ -164,6 +164,15 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             self.save_library(new_file)
 
     # ----------------------------------------------------------------------
+    def force_import_lib(self):
+        reply = QtWidgets.QMessageBox.critical(self, 'Import Online.xml',
+                                               'Attention, this will overwrite your current library! Continue?',
+                                               QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel,
+                                               QtWidgets.QMessageBox.Cancel)
+        if reply == QtWidgets.QMessageBox.Yes:
+            self.import_lib()
+
+    # ----------------------------------------------------------------------
     def import_lib(self):
         try:
             settings = ET.parse(self._online_path)
@@ -276,6 +285,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             data.tail = '\n'
 
         tree = ET.ElementTree(library)
+        if new_file == os.path.join(self._library_path, 'default.xml'):
+            self.archive(new_file)
+
         tree.write(new_file)
 
     # ----------------------------------------------------------------------
@@ -848,19 +860,20 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 return data
 
     # ----------------------------------------------------------------------
-    def archive_onlinexml(self):
-        if not os.path.exists(self._archive_path):
-            os.mkdir(self._archive_path)
+    def archive(self, file_name):
+        dir_name = os.path.join(os.path.dirname(file_name), 'archive')
+        if not os.path.exists(dir_name):
+            os.mkdir(dir_name)
 
-        base_name = os.path.join(self._archive_path, datetime.today().strftime('%Y_%m_%d_%H_%M_%S'))
+        base_name = os.path.join(dir_name, datetime.today().strftime('%Y_%m_%d_%H_%M_%S'))
         new_name = base_name + '.xml'
         counter = 0
         while os.path.exists(new_name):
             counter += 1
             new_name = base_name + f'{counter}' + '.xml'
 
-        shutil.move(self._online_path, new_name)
-        logger.info('Archive online.xml to {}'.format(new_name))
+        shutil.move(file_name, new_name)
+        logger.info('Archive {} to {}'.format(file_name, new_name))
 
     # ----------------------------------------------------------------------
     def apply_configuration(self):
@@ -870,7 +883,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         if data is not None:
 
             if self._auto_archive:
-                self.archive_onlinexml()
+                self.archive(self._online_path)
 
             logger.info('Applying configuration: saving to {}'.format(self._online_path))
 
@@ -993,13 +1006,6 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             self._online_path = str(path)
             logger.info('Load settings: online.xml path {}'.format(self._online_path))
 
-        path = settings.value('ArchivePath')
-        if path is None:
-            all_ok *= False
-        else:
-            self._archive_path = str(path)
-            logger.info('Load settings: archive path {}'.format(self._archive_path))
-
         path = settings.value('LibraryPath')
         if path is None:
             all_ok *= False
@@ -1037,7 +1043,6 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
             dialog = AppSettings(self)
             if dialog.exec_():
                 self._online_path = dialog.online_path
-                self._archive_path = dialog.archive_path
                 self._library_path = dialog.library_path
 
                 self._auto_save = dialog.auto_save
@@ -1096,7 +1101,7 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
 
         import_lib_action = QtWidgets.QAction('Import current online.xml', self)
         # save_lib_as.setShortcut('Ctrl+S')
-        import_lib_action.triggered.connect(self.import_lib)
+        import_lib_action.triggered.connect(self.force_import_lib)
 
         self.normal_user.setChecked(not self._superuser_mode)
         self.super_user.setChecked(self._superuser_mode)

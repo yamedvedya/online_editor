@@ -9,7 +9,6 @@ from onlinexml_editor.password import PasswordSetup
 from onlinexml_editor.general_settings import APP_NAME, DEFAULT_SUPERUSER_PASS
 
 SYSTEM_DEFAULT_ONLINE_XML = '/usr/local/experiment/online_dir/online.xml'
-SYSTEM_DEFAULT_ARCHIVE = '/usr/local/experiment/online_dir/archive/'
 SYSTEM_DEFAULT_LIBRARY = os.path.expanduser('~/.onlinexml_editor/')
 
 # ----------------------------------------------------------------------
@@ -26,7 +25,6 @@ class AppSettings(QtWidgets.QDialog):
 
         settings = QtCore.QSettings(APP_NAME)
 
-        self.archive_path = ''
         self.online_path = ''
         self.library_path = ''
 
@@ -44,17 +42,6 @@ class AppSettings(QtWidgets.QDialog):
         else:
             if os.path.exists(SYSTEM_DEFAULT_ONLINE_XML):
                 self._ui.le_online_path.setText(SYSTEM_DEFAULT_ONLINE_XML)
-
-        path = settings.value('ArchivePath')
-        if path is not None:
-            self._ui.le_archive_path.setText(str(path))
-        else:
-            if os.path.exists(SYSTEM_DEFAULT_ARCHIVE):
-                self._ui.le_archive_path.setText(SYSTEM_DEFAULT_ARCHIVE)
-            elif os.path.exists(SYSTEM_DEFAULT_ONLINE_XML):
-                path = os.path.join(os.path.dirname(SYSTEM_DEFAULT_ONLINE_XML), 'archive')
-                if os.path.exists(path):
-                    self._ui.le_archive_path.setText(path)
 
         path = settings.value('LibraryPath')
         if path is not None:
@@ -85,7 +72,7 @@ class AppSettings(QtWidgets.QDialog):
 
         self._ui.bg_user_role.buttonClicked.connect(self._change_role)
 
-        for ui in ['archive_path', 'online_path', 'library_path']:
+        for ui in ['online_path', 'library_path']:
             getattr(self._ui, f'cmd_{ui}').clicked.connect(lambda state, source=ui: self._change_path(source))
 
         self._ui.cmd_superuser_pass.clicked.connect(self._set_pass)
@@ -95,7 +82,7 @@ class AppSettings(QtWidgets.QDialog):
         self._ui.rb_superuser.blockSignals(flag)
         self._ui.rb_regular_user.blockSignals(flag)
 
-        for ui in ['archive_path', 'online_path', 'library_path']:
+        for ui in ['online_path', 'library_path']:
             getattr(self._ui, f'le_{ui}').blockSignals(flag)
             getattr(self._ui, f'cmd_{ui}').blockSignals(flag)
 
@@ -135,8 +122,7 @@ class AppSettings(QtWidgets.QDialog):
                                                             'online.xml (online.xml)')
         else:
             default_path = getattr(self._ui, f'le_{source}').text()
-            path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Archive folder' if source == 'archive_path'
-                                                                    else 'Library folder',
+            path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Library folder',
                                                               default_path if default_path != '' else os.getcwd())
 
         if path:
@@ -147,7 +133,7 @@ class AppSettings(QtWidgets.QDialog):
         all_ok = True
         error_text = ''
 
-        for ui in ['archive_path', 'online_path', 'library_path']:
+        for ui in ['online_path', 'library_path']:
             setattr(self, ui, str(getattr(self._ui, f'le_{ui}').text()))
             if not os.path.exists(getattr(self, ui)):
                 all_ok *= False
@@ -164,7 +150,6 @@ class AppSettings(QtWidgets.QDialog):
 
         settings = QtCore.QSettings(APP_NAME)
         settings.setValue('OnlinePath', str(self.online_path))
-        settings.setValue('ArchivePath', str(self.archive_path))
         settings.setValue('LibraryPath', str(self.library_path))
 
         self.auto_save = self._ui.chk_auto_save.isChecked()

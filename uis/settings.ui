@@ -55,6 +55,9 @@
       <string>Paths</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="le_online_path"/>
+      </item>
       <item row="0" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
@@ -62,45 +65,25 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
-       <widget class="QLineEdit" name="le_online_path"/>
-      </item>
-      <item row="0" column="2">
-       <widget class="QPushButton" name="cmd_online_path">
-        <property name="text">
-         <string>Set folder</string>
-        </property>
-       </widget>
-      </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="label_3">
-        <property name="text">
-         <string>Online.xml archive</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
        <widget class="QLabel" name="label_5">
         <property name="text">
          <string>Library path</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="le_archive_path"/>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="le_library_path"/>
-      </item>
       <item row="1" column="2">
-       <widget class="QPushButton" name="cmd_archive_path">
+       <widget class="QPushButton" name="cmd_library_path">
         <property name="text">
          <string>Set folder</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="2">
-       <widget class="QPushButton" name="cmd_library_path">
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="le_library_path"/>
+      </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="cmd_online_path">
         <property name="text">
          <string>Set folder</string>
         </property>
