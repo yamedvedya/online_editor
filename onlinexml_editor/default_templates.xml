@@ -1,45 +1,153 @@
 <templates>
-    <device name="ARBITRARY DEVICE" arbitrary="True">
+    <action name="Arbitrary device" arbitrary="True">
         <common hostname="___local___"/>
-    </device>
-    <device name="MEASUREMENT GROUP">
-        <personal name="" mgs="" device="None"/>
-        <common type="measurement_group" module="None" control="tango" hostname="___local___"/>
-    </device>
-    <device name="OMS MOTOR" class="OmsVme58">
-        <personal name="" device=""/>
-        <common type="stepping_motor" module="oms58" control="tango" hostname="___local___"/>
-    </device>
-    <device name="TANGO MOTOR">
-        <personal name="" device=""/>
-        <common type="type_tango" module="motor_tango" control="tango" hostname="___local___"/>
-    </device>
-    <device name="DGG2 TIMER" class="DGG2">
+    </action>
+    <group name = "ADC">
+        <action name="TIP830" class="TIP830u20">
+            <personal name="" device=""/>
+            <common type="adc" module="tip830" control="tango" hostname="___local___"/>
+        </action>
+        <action name="VFCADC" class="VFCADC;PiLCVFCADC">
+            <personal name="" device=""/>
+            <common type="adc" module="vfcadc" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <group name = "Counter">
+        <action name="Counter tango" class="VcExecutor">
+            <personal name="" device=""/>
+            <common type="counter" module="counter_tango" control="tango" hostname="___local___"/>
+        </action>
+        <action name="SIS 3820" class="SIS3820">
+            <personal name="" device=""/>
+            <common type="counter" module="sis3820" control="tango" hostname="___local___"/>
+        </action>
+        <action name="VFCADC" class="VFCADC">
+            <personal name="" device=""/>
+            <common type="counter" module="vfcadc" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <group name = "DAC">
+        <action name="TIP551" class="TIP551">
+            <personal name="" device=""/>
+            <common type="dac" module="tip551" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <action name="DGG2/MDGG8 timer" class="DGG2;MDGG8">
         <personal name="" device=""/>
         <common type="timer" module="dgg2" control="tango" hostname="___local___"/>
-    </device>
-    <device name="SIS3610 REGISTER IN" class="SIS3610">
+    </action>
+    <group name = "Detector">
+        <action name="Eiger" class="EigerDectris;EigerFilewriter;EigerMonitor">
+            <personal name="" device=""/>
+            <common type="detector" module="eigerdectris" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Tango Vimba" class="TangoVimba">
+            <personal name="" device=""/>
+            <common type="detector" module="tangovimba" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Lambda" class="LambdaCtrl;Lambda">
+            <personal name="" device=""/>
+            <common type="detector" module="lambda" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Pilatus 100k" class="Pilatus;Socket">
+            <personal name="" device=""/>
+            <common type="detector" module="pilatus100k" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Pilatus 1m" class="Pilatus">
+            <personal name="" device=""/>
+            <common type="detector" module="pilatus1m" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Pilatus 300k" class="Pilatus">
+            <personal name="" device=""/>
+            <common type="detector" module="pilatus200k" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Pilatus 2m" class="Pilatus">
+            <personal name="" device=""/>
+            <common type="detector" module="pilatus100k" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Perkin Elmer" class="PerkinElmerDetector">
+            <personal name="" device=""/>
+            <common type="detector" module="perkinelmer" control="tango" hostname="___local___"/>
+        </action>
+        <action name="ImageStar4022" class="ImageStar4022">
+            <personal name="" device=""/>
+            <common type="detector" module="imagestar4022" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <group name = "Input register">
+        <action name="SIS 3610" class="SIS3610">
+            <personal name="" device=""/>
+            <common type="input_register" module="sis3610" control="tango" hostname="___local___"/>
+        </action>
+        <action name="VDOT32 IN" class="">
+            <personal name="" device=""/>
+            <common type="input_register" module="vdot32in" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <action name="Measurement group">
+        <personal name="" mgs="" device="None"/>
+        <common type="measurement_group" module="None" control="tango" hostname="___local___"/>
+    </action>
+    <group name = "MCA">
+        <action name="Amptekoned" class="AmptekPX5">
+            <personal name="" device=""/>
+            <common type="mca" module="amptekoned" control="tango" hostname="___local___"/>
+        </action>
+        <action name="MCA 8715" class="MCA8715">
+            <personal name="" device=""/>
+            <common type="mca" module="mca_8701" control="tango" hostname="___local___"/>
+        </action>
+        <action name="MCA XIA" class="XIA">
+            <personal name="" device=""/>
+            <common type="mca" module="mca_xia" control="tango" hostname="___local___"/>
+        </action>
+        <action name="SIS 3302" class="SIS3302">
+            <personal name="" device=""/>
+            <common type="mca" module="sis3302" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <group name = "Output register">
+        <action name="SIS 3610" class="SIS3610">
+            <personal name="" device=""/>
+            <common type="output_register" module="sis3610" control="tango" hostname="___local___"/>
+        </action>
+        <action name="VDOT32 OUT" class="">
+            <personal name="" device=""/>
+            <common type="output_register" module="vdot32in" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <group name = "Stepping motor">
+        <action name="OMS58" class="OmsVme58;SingleMotorAxis;PhyMotionMotor">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="oms58" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Motor tango" class="">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="motor_tango" control="tango" hostname="___local___"/>
+        </action>
+        <action name="SPK" class="Spk">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="spk" control="tango" hostname="___local___"/>
+        </action>
+        <action name="PiE710" class="PiezoPiE710">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="pie710" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Lom" class="Lom">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="lom" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Kohzu" class="KohzuSCAxis">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="kohzu" control="tango" hostname="___local___"/>
+        </action>
+        <action name="Absorber Controller" class="AbsorberController">
+            <personal name="" device=""/>
+            <common type="stepping_motor" module="absbox" control="tango" hostname="___local___"/>
+        </action>
+    </group>
+    <action name="Virtual motor" class="VmExecutor">
         <personal name="" device=""/>
-        <common type="input_register" module="sis3610" control="tango" hostname="___local___"/>
-    </device>
-    <device name="SIS3610 REGISTER OUT" class="SIS3610">
-        <personal name="" device=""/>
-        <common type="output_register" module="sis3610" control="tango" hostname="___local___"/>
-    </device>
-    <device name="SIS3820 COUNTER" class="SIS3820">
-        <personal name="" device=""/>
-        <common type="counter" module="sis3820" control="tango" hostname="___local___"/>
-    </device>
-    <device name="ATTRIBUTE ZERO CONTROLLER">
-        <personal name="" device=""/>
-        <common type="counter" module="tangoattributezerodctrl" control="tango" hostname="___local___"/>
-    </device>
-    <device name="ATTRIBUTE CONTROLLER">
-        <personal name="" device=""/>
-        <common type="counter" module="tangoattributectctrl" control="tango" hostname="___local___"/>
-    </device>
-    <device name="LAMBDA DETECTOR" class="LambdaCtrl;Lambda">
-        <personal name="" device=""/>
-        <common type="DETECTOR" module="lambda" control="tango" hostname="___local___"/>
-    </device>
+        <common type="virtual_motor" module="vmexecutor" control="tango" hostname="___local___"/>
+    </action>
 </templates>

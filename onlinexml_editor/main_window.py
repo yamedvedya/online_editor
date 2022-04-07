@@ -55,6 +55,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         self._last_modified = None
         self._last_edit_step = -1
 
+        self._menu_requested = False
+
         counter = 0
         self._temp_dir = os.path.join(tempfile.gettempdir(), 'onlinexml_editor_{:s}'.format(str(counter)))
         while os.path.exists(self._temp_dir):
@@ -413,6 +415,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
         if not self._superuser_mode:
             return
 
+        self._menu_requested = True
+
         menu = QtWidgets.QMenu()
 
         add_menu = QtWidgets.QMenu('Add...')
@@ -538,6 +542,8 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
                 self.refresh_tables()
             except Exception as err:
                 logger.error(f'Could not execute command: {err}')
+
+        self._menu_requested = False
 
     # ----------------------------------------------------------------------
     def drag_drop(self, mode, dropped_index, dropped_row, dragged_indexes):
@@ -1160,6 +1166,9 @@ class OnlinexmlEditor(QtWidgets.QMainWindow):
     def _refresh(self):
         """
         """
+        if self._menu_requested:
+            return
+
         try:
            _last_applied = float(QtCore.QSettings(APP_NAME).value("last_applied"))
         except:

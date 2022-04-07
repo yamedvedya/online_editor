@@ -43,11 +43,11 @@ class ConfigureDevice(QtWidgets.QDialog):
 
         self._default_color = self._ui.le_name.styleSheet()
 
-        self.templates = ET.parse(os.path.join(os.path.dirname(__file__), 'default_templates.xml')).getroot()
-
-        for device in self.templates.iter('device'):
-            if device.get('name') is not None:
-                self._ui.cmb_template.addItem(device.get('name'))
+        self.templates = {}
+        but_menu = QtWidgets.QMenu(self)
+        self._parce_menu_group(ET.parse(os.path.join(os.path.dirname(__file__), 'default_templates.xml')).getroot(),
+                               but_menu)
+        self._ui.but_template.setMenu(but_menu)
 
         if options['new']:
             self.tango_host = PyTango.Database().get_db_host().split('.')[0] + ":10000"
@@ -138,7 +138,6 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._rescan_database()
 
         self._ui.chk_unlock.clicked.connect(self._unlock_device)
-        self._ui.cmb_template.currentIndexChanged.connect(self._apply_template)
 
         self._ui.cmd_rescan_database.clicked.connect(self._rescan_database)
 
@@ -148,6 +147,23 @@ class ConfigureDevice(QtWidgets.QDialog):
         self._ui.le_name.textEdited.connect(self._colorize_ui)
 
         self._bild_view()
+
+    # ----------------------------------------------------------------------
+    def _parce_action(self, element, menu):
+        action = QtWidgets.QAction(element.get('name'), self)
+        action.triggered.connect(lambda state, name=element.get('name'): self._apply_template(name))
+        menu.addAction(action)
+        self.templates[element.get('name')] = element
+
+    # ----------------------------------------------------------------------
+    def _parce_menu_group(self, element, menu):
+        for child in list(element):
+            if child.tag == 'group':
+                new_menu = QtWidgets.QMenu(child.get('name'), self)
+                menu.addMenu(new_menu)
+                self._parce_menu_group(child, new_menu)
+            elif child.tag == 'action':
+                self._parce_action(child, menu)
 
     @staticmethod
     # ----------------------------------------------------------------------
@@ -264,27 +280,26 @@ class ConfigureDevice(QtWidgets.QDialog):
         super(ConfigureDevice, self).accept()
 
     # ----------------------------------------------------------------------
-    def _apply_template(self):
+    def _apply_template(self, template_name):
         self._common_property_widgets = {}
         self._personal_property_widgets = {}
 
         self._ui.chk_unlock.setChecked(False)
 
-        template = self._ui.cmb_template.currentText()
-        for device in self.templates.iter('device'):
-            if device.get('name') == template:
-                self._arbitrary = False if device.get('arbitrary') is None else strtobool(device.get('arbitrary'))
-                self._class = [] if device.get('class') is None else device.get('class').split(';')
-                self._rescan_database()
+        self._arbitrary = False if self.templates[template_name].get('arbitrary') is None else \
+            strtobool(self.templates[template_name].get('arbitrary'))
+        self._class = [] if self.templates[template_name].get('class') is None else \
+            self.templates[template_name].get('class').split(';')
+        self._rescan_database()
 
-                for child in list(device):
-                    for key, value in child.attrib.items():
-                        if key not in ALWAYS_PERSONAL:
-                            self._add_property(child.tag if self._type != 'single_device' else 'personal',
-                                               key, value, self._arbitrary, False)
+        for child in list(self.templates[template_name]):
+            for key, value in child.attrib.items():
+                if key not in ALWAYS_PERSONAL:
+                    self._add_property(child.tag if self._type != 'single_device' else 'personal',
+                                       key, value, self._arbitrary, False)
 
-        self._ui.cmd_add_common_property.setVisible(template == 'ARBITRARY DEVICE')
-        self._ui.cmd_add_personal_property.setVisible(template == 'ARBITRARY DEVICE')
+        self._ui.cmd_add_common_property.setVisible(template_name == 'Arbitrary device')
+        self._ui.cmd_add_personal_property.setVisible(template_name == 'Arbitrary device')
 
         self._bild_view()
 
