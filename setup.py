@@ -1,30 +1,9 @@
 #!/usr/bin/python3
 import io
 import os
-from subprocess import check_output, STDOUT
-from setuptools.command.install import install
+from onlinexml_editor.version import __version__
 
 from setuptools import setup, find_packages
-
-
-class PostInstallCommand(install):
-    """Post-installation for installation mode."""
-    def run(self):
-        print("Run pre-setup")
-        # Set version
-        cmd = "git log -1 --format='%at' | xargs -I{} date -d @{} +'%Y/%m/%d %H:%M:%S'"
-        version = check_output(cmd, stderr=STDOUT, shell=True, universal_newlines=True)
-        version = version.replace("\n", "")
-        file = open('onlinexml_editor/version.py', 'w')
-        file.write('__version__="{}"'.format(version))
-        file.close()
-
-        # build qt gui
-        # cmd = "python3 .petra_viewer/compile_uis.py"
-        # output = check_output(cmd, stderr=STDOUT, shell=True, universal_newlines=True)
-        # print(output)
-        install.run(self)
-
 
 # Package meta-data.
 NAME = 'onlinexml_editor'
@@ -32,7 +11,7 @@ DESCRIPTION = 'Utility to edit online.xml files, used in Sardana'
 EMAIL = 'yury.matveev@desy.de'
 AUTHOR = 'Yury Matveyev'
 REQUIRES_PYTHON = '>=3.7'
-VERSION = '2.0.0'
+VERSION = '2.1.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
@@ -48,7 +27,7 @@ except IOError:
 
 # Load the package's __version__.py module as a dictionary.
 about = {}
-about['__version__'] = VERSION
+about['__version__'] = __version__
 
 # Where the magic happens:
 setup(
@@ -61,22 +40,12 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     packages=find_packages(),
-    package_dir={'onlinexml_editor': 'onlinexml_editor',
-                 },
-    package_data={
-        'petra_camera': ['onlinexml_editor/*.py', 'onlinexml_editor/*.xml'],
-    },
-    cmdclass={
-        'install': PostInstallCommand,
-    },
+    package_dir={'onlinexml_editor': 'onlinexml_editor',},
+    package_data={'petra_camera': ['onlinexml_editor/*.py', 'onlinexml_editor/*.xml'],},
     install_requires=REQUIRED,
     include_package_data=True,
     license='GPLv3',
-    entry_points={
-        'console_scripts': [
-            'onlinexml_editor = onlinexml_editor:main',
-        ],
-    },
+    entry_points={'console_scripts': ['onlinexml_editor = onlinexml_editor:main',],},
     scripts=['onlinexml_editor/onlinexml_editor.sh'],
     classifiers=[
         # Trove classifiers

@@ -15,7 +15,7 @@ from onlinexml_editor.version import __version__
 class AboutDialog(QtWidgets.QDialog):
     """
     """
-    SOURCE_DIR = "petra_camera"
+    SOURCE_DIR = "./onlinexml_editor"
     DATETIME = "%Y-%m-%d %H:%M:%S"
 
     # ----------------------------------------------------------------------
